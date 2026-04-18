@@ -2,10 +2,17 @@
 config.py — всі константи та CertResult dataclass.
 """
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+
+def _read_bot_token() -> str:
+    """Railway / Docker: змінна `BOT_TOKEN`. Дублікат імені: `TELEGRAM_BOT_TOKEN`."""
+    raw = (os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    return raw if raw else "YOUR_BOT_TOKEN_HERE"
+
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
-BOT_TOKEN: str = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+BOT_TOKEN: str = _read_bot_token()
 
 # ── TELC portal ───────────────────────────────────────────────────────────────
 TELC_URL: str = "https://results.telc.net/"
@@ -23,6 +30,7 @@ USER_DELAY_SECONDS: float = 2.0
 # ── Persistence ───────────────────────────────────────────────────────────────
 DATA_FILE: str = "users_data.json"
 LOG_FILE: str  = "telc_bot.log"
+
 
 # ── CertResult ────────────────────────────────────────────────────────────────
 @dataclass

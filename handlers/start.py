@@ -77,6 +77,7 @@ lang_conv_handler = ConversationHandler(
     fallbacks=[],
     name="lang_conv",
     persistent=False,
+    per_message=True,  # CallbackQuery — коректний ключ розмови (без PTBUserWarning)
 )
 
 start_handler = CommandHandler("start", cmd_start)

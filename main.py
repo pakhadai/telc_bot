@@ -45,7 +45,11 @@ logger = logging.getLogger(__name__)
 
 def build_app() -> Application:
     if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
-        logger.error("BOT_TOKEN is not set! Set env variable: export BOT_TOKEN=<token>")
+        logger.error(
+            "BOT_TOKEN is not set. Add variable BOT_TOKEN (or TELEGRAM_BOT_TOKEN) "
+            "in Railway → Variables / service settings, then redeploy. "
+            "Local: export BOT_TOKEN=<token from @BotFather>"
+        )
         sys.exit(1)
 
     app = Application.builder().token(BOT_TOKEN).build()
@@ -66,6 +70,7 @@ def build_app() -> Application:
         fallbacks=[CommandHandler("cancel", cancel)],
         name="add_conv",
         persistent=False,
+        per_message=True,  # entry через CallbackQuery (menu:add)
         conversation_timeout=300,   # 5 хв — якщо мовчить, скидаємо стан
     )
     app.add_handler(add_conv)

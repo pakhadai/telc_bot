@@ -90,7 +90,7 @@ pip install -r requirements.txt
    $env:BOT_TOKEN = "7123456789:AAH..."
    ```
 
-   У коді токен береться з `os.getenv("BOT_TOKEN")` — див. `config.py`. Файл `.env.example` лише нагадує ім’я змінної (на Railway її додають у Variables).
+   У `config.py` токен читається з **`BOT_TOKEN`** або **`TELEGRAM_BOT_TOKEN`** (пробіли на початку/кінці обрізаються). Файл `.env.example` — підказка для локального запуску; на Railway змінні вказуються в **Variables**.
 
 ### 3. Запуск
 
@@ -127,7 +127,7 @@ python main.py
 ## Деплой (наприклад Railway)
 
 1. Репозиторій на GitHub → New Project у [Railway](https://railway.app) з цього repo.
-2. Змінна середовища: `BOT_TOKEN`.
+2. У **Variables** сервісу додай **`BOT_TOKEN`** = токен від @BotFather (ім’я змінної саме таке, без лапок у значенні). Альтернатива: **`TELEGRAM_BOT_TOKEN`**. Після зміни змінних натисни **Redeploy**.
 3. Команда старту: `python main.py` (або `Procfile` з `worker: python main.py`).
 
 Пам’ятай: **персистентний диск** — якщо `users_data.json` має зберігатися між деплоями, підключи volume або зовнішнє сховище; інакше після redeploy список сертифікатів обнулиться.
