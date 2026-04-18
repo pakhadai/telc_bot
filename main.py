@@ -1,0 +1,109 @@
+"""
+main.py — entry point.
+
+Ключовий фікс: scheduler стартує через post_init hook,
+а не до run_polling() — це вирішує конфлікт event loop.
+"""
+
+import logging
+import sys
+
+from telegram import Update
+from telegram.ext import (
+    Application,
+    ConversationHandler,
+    MessageHandler,
+    CommandHandler,
+    filters,
+)
+
+from config import BOT_TOKEN, LOG_FILE, CHECK_TIMES, SCHEDULER_TIMEZONE
+from handlers.start import lang_conv_handler
+from handlers.tracking import (
+    ASK_LABEL, ASK_PNR, ASK_ISSUE_DATE, ASK_BIRTH,
+    got_label, got_pnr, got_issue_date, got_birth, cancel,
+)
+from handlers.menu import menu_callback_handler, setlang_callback_handler
+from handlers.inline import inline_handler
+from scheduler import setup_scheduler
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
+)
+# Зменшити шум від бібліотек
+for noisy in ("httpx", "httpcore", "apscheduler.executors", "telegram.ext.ExtBot"):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
+
+
+def build_app() -> Application:
+    if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+        logger.error("BOT_TOKEN is not set! Set env variable: export BOT_TOKEN=<token>")
+        sys.exit(1)
+
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    # ── 1. /start + language picker ───────────────────────────────────────────
+    app.add_handler(lang_conv_handler)
+
+    # ── 2. Add-tracking conversation ─────────────────────────────────────────
+    #    Entry: menu:add callback → got_label → got_pnr → got_issue_date → got_birth
+    add_conv = ConversationHandler(
+        entry_points=[menu_callback_handler],   # menu:add sets state ASK_LABEL
+        states={
+            ASK_LABEL:      [MessageHandler(filters.TEXT & ~filters.COMMAND, got_label)],
+            ASK_PNR:        [MessageHandler(filters.TEXT & ~filters.COMMAND, got_pnr)],
+            ASK_ISSUE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, got_issue_date)],
+            ASK_BIRTH:      [MessageHandler(filters.TEXT & ~filters.COMMAND, got_birth)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        name="add_conv",
+        persistent=False,
+        conversation_timeout=300,   # 5 хв — якщо мовчить, скидаємо стан
+    )
+    app.add_handler(add_conv)
+
+    # ── 3. Other callbacks ────────────────────────────────────────────────────
+    app.add_handler(setlang_callback_handler)
+    app.add_handler(inline_handler)
+
+    # ── 4. Scheduler через post_init ─────────────────────────────────────────
+    #    post_init викликається ПІСЛЯ того як PTB запустив event loop,
+    #    але ДО того як починається polling. Це єдиний безпечний спосіб
+    #    стартувати APScheduler разом з asyncio.
+    scheduler = setup_scheduler(app)
+
+    async def _start_scheduler(application: Application) -> None:
+        scheduler.start()
+        times = " & ".join(f"{h:02d}:{m:02d}" for h, m in CHECK_TIMES)
+        logger.info("Scheduler started. Checks: %s (%s)", times, SCHEDULER_TIMEZONE)
+
+    async def _stop_scheduler(application: Application) -> None:
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+            logger.info("Scheduler stopped.")
+
+    app.post_init    = _start_scheduler
+    app.post_shutdown = _stop_scheduler
+
+    return app
+
+
+def main() -> None:
+    app = build_app()
+    logger.info("TELC Tracker Bot starting...")
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,
+    )
+
+
+if __name__ == "__main__":
+    main()

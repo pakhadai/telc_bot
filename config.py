@@ -1,0 +1,43 @@
+"""
+config.py — всі константи та CertResult dataclass.
+"""
+import os
+from dataclasses import dataclass, field
+
+# ── Telegram ──────────────────────────────────────────────────────────────────
+BOT_TOKEN: str = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+
+# ── TELC portal ───────────────────────────────────────────────────────────────
+TELC_URL: str = "https://results.telc.net/"
+
+# Скільки днів ± від введеної дати перебирати
+DATE_SEARCH_RANGE: int = 21
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+CHECK_TIMES: list[tuple[int, int]] = [(9, 0), (17, 0)]   # Europe/Berlin
+SCHEDULER_TIMEZONE: str = "Europe/Berlin"
+
+# Затримка між перевірками різних користувачів (щоб не перевантажувати API)
+USER_DELAY_SECONDS: float = 2.0
+
+# ── Persistence ───────────────────────────────────────────────────────────────
+DATA_FILE: str = "users_data.json"
+LOG_FILE: str  = "telc_bot.log"
+
+# ── CertResult ────────────────────────────────────────────────────────────────
+@dataclass
+class CertResult:
+    """Результат одного scrape-запиту."""
+    found: bool         = False
+    cert_type: str      = ""       # "digital" | "paper" | ""
+    issue_date: str     = ""
+    status: str         = ""       # "passed" | "failed" | "not_found" | "error"
+    praedikat: str      = ""       # "Sehr gut", "Gut", ...
+    score_total: str    = ""       # "271 / 300"
+    score_written: str  = ""       # "197 / 225"
+    score_oral: str     = ""       # "74 / 75"
+    exam_name: str      = ""       # "telc Deutsch B1"
+    exam_date: str      = ""       # "27.10.2025"
+    exam_center: str    = ""       # "HDS St. Gallen AG"
+    dates_checked: int  = 0
+    error_message: str  = ""
