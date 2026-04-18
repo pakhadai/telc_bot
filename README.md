@@ -1,6 +1,6 @@
 # TELC Result Tracker Bot
 
-Telegram-бот для відстеження результатів іспитів на [results.telc.net](https://results.telc.net/). Розрахований на **особисте користування** (ти й кілька друзів): дані зберігаються локально в JSON, без окремої бази даних.
+Telegram-бот для відстеження результатів іспитів на [results.telc.net](https://results.telc.net/). Розрахований на **особисте користування** (ти й кілька друзів): дані в **SQLite** (stdlib), без окремого сервера БД. Старий `users_data.json` при першому запуску **одноразово** імпортується в SQLite, якщо БД ще порожня.
 
 **Стек:** Python ≥ 3.11 · [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) v21 · [aiohttp](https://docs.aiohttp.org/) · [APScheduler](https://apscheduler.readthedocs.io/)
 
@@ -26,7 +26,7 @@ telc_bot/
 ├── main.py              # Точка входу, реєстрація хендлерів, post_init → scheduler
 ├── config.py            # Константи, dataclass CertResult
 ├── i18n.py              # Рядки UI (UA / DE / EN)
-├── storage.py           # users_data.json (користувачі та сертифікати)
+├── storage.py           # SQLite: користувачі та сертифікати
 ├── scheduler.py         # APScheduler + безпечна відправка в Telegram
 ├── requirements.txt
 │
@@ -98,7 +98,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Файл `users_data.json` створиться після першого збереження даних. **Не коміть** його в git (вже в `.gitignore`).
+Файл **`telc_bot.sqlite`** з’явиться після першого збереження (або шлях з **`SQLITE_PATH`**). Файл БД у `.gitignore`; старий `users_data.json` після міграції перейменовується на `*.json.migrated`.
 
 ### 4. Inline (опційно)
 
@@ -110,6 +110,7 @@ python main.py
 
 | Параметр | За замовчуванням | Опис |
 |----------|------------------|------|
+| `SQLITE_PATH` (env) | `telc_bot.sqlite` у каталозі проєкту | Шлях до файлу SQLite; на Railway з volume — наприклад `/data/telc.sqlite` |
 | `DATE_SEARCH_RANGE` | `21` | Днів ± від введеної дати видачі |
 | `CHECK_TIMES` | `(9,0)`, `(17,0)` | Години перевірок (Europe/Berlin) |
 | `USER_DELAY_SECONDS` | `2.0` | Пауза між користувачами під час планового циклу |
@@ -133,7 +134,7 @@ python main.py
 
 **Якщо Conflict лишається після видалення старого проєкту:** зазвичай десь ще «живе» той самий токен — ПК, інший хостинг, або друг із копією коду. Найнадійніше: у @BotFather → **/revoke** для бота → новий токен → лише в **Variables** нового Railway-сервісу → Redeploy. Перевір у Railway: **Replicas = 1**, у проєкті лише **один** сервіс із цим репо.
 
-Пам’ятай: **персистентний диск** — якщо `users_data.json` має зберігатися між деплоями, підключи volume або зовнішнє сховище; інакше після redeploy список сертифікатів обнулиться.
+**База між деплоями на Railway:** файли в контейнері **не** зберігаються, якщо немає volume. Додай **Volume** (наприклад точка монтування `/data`) і змінну **`SQLITE_PATH=/data/telc.sqlite`**. Локально за замовчуванням використовується `telc_bot.sqlite` поруч із кодом.
 
 ---
 
@@ -141,7 +142,7 @@ python main.py
 
 - Бот **не** є офіційним продуктом TELC; API порталу можуть змінитися — тоді знадобиться оновлення `runner.py` / `parser.py`.
 - Використовуй розумні інтервали між запитами; не варто масштабувати на сотні користувачів без окремого дизайну (rate limits, БД).
-- Токен бота та `users_data.json` тримай приватними.
+- Токен бота та файл SQLite (або бекап) тримай приватними.
 
 ---
 

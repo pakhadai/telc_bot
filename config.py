@@ -3,6 +3,9 @@ config.py — всі константи та CertResult dataclass.
 """
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+_BASE_DIR = Path(__file__).resolve().parent
 
 
 def _read_bot_token() -> str:
@@ -28,8 +31,13 @@ SCHEDULER_TIMEZONE: str = "Europe/Berlin"
 USER_DELAY_SECONDS: float = 2.0
 
 # ── Persistence ───────────────────────────────────────────────────────────────
-DATA_FILE: str = "users_data.json"
-LOG_FILE: str  = "telc_bot.log"
+# SQLite (основне сховище). На Railway: volume + SQLITE_PATH=/data/telc.sqlite
+SQLITE_PATH: Path = Path(
+    os.getenv("SQLITE_PATH", str(_BASE_DIR / "telc_bot.sqlite"))
+).expanduser()
+# Легасі JSON — лише одноразова міграція в SQLite, якщо БД порожня
+DATA_FILE: Path = _BASE_DIR / os.getenv("USERS_JSON_LEGACY", "users_data.json")
+LOG_FILE: str = "telc_bot.log"
 
 
 # ── CertResult ────────────────────────────────────────────────────────────────

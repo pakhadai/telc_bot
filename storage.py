@@ -1,90 +1,204 @@
 """
-storage.py — JSON persistence, multi-certificate support.
+storage.py — SQLite (міні БД), кілька сертифікатів на користувача.
 
-Schema per chat_id:
-{
-  "lang": "ua",
-  "certs": [
-    {
-      "id": 1,
-      "label": "Dmytro B1",
-      "pnr": "4627704",
-      "center_date": "13.11.2025",
-      "birth": "23.02.1994",
-      "added_at": "2025-11-01T10:00:00",
-      "last_status": "not_found",
-      "last_check": null
-    }
-  ]
-}
-Max MAX_CERTS certificates per user.
+Міграція: якщо таблиці порожні й існує старий users_data.json — дані імпортуються один раз.
+На Railway змонтуй volume і задай SQLITE_PATH=/data/telc.sqlite (каталог /data має існувати в образі).
 """
+
+from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from config import DATA_FILE
+from config import DATA_FILE, SQLITE_PATH
 
 logger = logging.getLogger(__name__)
-_path = Path(DATA_FILE)
+
 MAX_CERTS = 5
 
-
-def _load() -> dict:
-    if _path.exists():
-        try:
-            with open(_path, encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.error("Failed to load data file: %s", exc)
-    return {}
+_db_ready = False
 
 
-def _save(data: dict) -> None:
+def _connect() -> sqlite3.Connection:
+    SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(SQLITE_PATH), timeout=30.0)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    return conn
+
+
+def _init_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            chat_id TEXT PRIMARY KEY,
+            lang TEXT NOT NULL DEFAULT 'ua'
+        );
+
+        CREATE TABLE IF NOT EXISTS certs (
+            chat_id TEXT NOT NULL,
+            id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            pnr TEXT NOT NULL,
+            center_date TEXT NOT NULL,
+            birth TEXT NOT NULL,
+            added_at TEXT NOT NULL,
+            last_status TEXT NOT NULL DEFAULT 'not_found',
+            last_check TEXT,
+            PRIMARY KEY (chat_id, id),
+            FOREIGN KEY (chat_id) REFERENCES users(chat_id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_certs_chat ON certs(chat_id);
+        """
+    )
+
+
+def _migrate_json_if_needed(conn: sqlite3.Connection) -> None:
+    n = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
+    if n > 0:
+        return
+    legacy = Path(DATA_FILE)
+    if not legacy.is_file():
+        return
     try:
-        with open(_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except OSError as exc:
-        logger.error("Failed to save data file: %s", exc)
+        with open(legacy, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Legacy JSON present but unreadable (%s), skip migration", exc)
+        return
+    if not isinstance(data, dict) or not data:
+        return
+    logger.info("Migrating %d user(s) from %s to SQLite", len(data), legacy)
+    for cid, u in data.items():
+        if not isinstance(u, dict):
+            continue
+        lang = u.get("lang", "ua")
+        conn.execute(
+            "INSERT OR REPLACE INTO users (chat_id, lang) VALUES (?, ?)",
+            (str(cid), str(lang)),
+        )
+        for c in u.get("certs") or []:
+            if not isinstance(c, dict):
+                continue
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO certs (
+                    chat_id, id, label, pnr, center_date, birth,
+                    added_at, last_status, last_check
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(cid),
+                    int(c["id"]),
+                    str(c.get("label", "")),
+                    str(c.get("pnr", "")),
+                    str(c.get("center_date", "")),
+                    str(c.get("birth", "")),
+                    str(c.get("added_at", datetime.now().isoformat())),
+                    str(c.get("last_status", "not_found")),
+                    c.get("last_check"),
+                ),
+            )
+    conn.commit()
+    try:
+        legacy.rename(legacy.with_suffix(".json.migrated"))
+    except OSError:
+        pass
 
 
-def _user(data: dict, cid: str) -> dict:
-    if cid not in data:
-        data[cid] = {"lang": "ua", "certs": []}
-    if "certs" not in data[cid]:
-        data[cid]["certs"] = []
-    return data[cid]
+def init_db() -> None:
+    global _db_ready
+    if _db_ready:
+        return
+    with _connect() as conn:
+        _init_schema(conn)
+        conn.commit()
+        _migrate_json_if_needed(conn)
+        conn.commit()
+    _db_ready = True
 
 
-def _next_id(certs: list) -> int:
-    return max((c["id"] for c in certs), default=0) + 1
+def _ensure_user(conn: sqlite3.Connection, chat_id: str, default_lang: str = "ua") -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO users (chat_id, lang) VALUES (?, ?)",
+        (chat_id, default_lang),
+    )
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
+def _row_to_cert(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "label": row["label"],
+        "pnr": row["pnr"],
+        "center_date": row["center_date"],
+        "birth": row["birth"],
+        "added_at": row["added_at"],
+        "last_status": row["last_status"],
+        "last_check": row["last_check"],
+    }
+
+
+# ── Public API (синхронно, як раніше — виклики з async-хендлерів PTB) ─────────
+
 
 def get_lang(chat_id) -> str:
-    return _load().get(str(chat_id), {}).get("lang", "ua")
+    init_db()
+    cid = str(chat_id)
+    with _connect() as conn:
+        row = conn.execute("SELECT lang FROM users WHERE chat_id = ?", (cid,)).fetchone()
+        return row["lang"] if row else "ua"
 
 
 def set_lang(chat_id, lang: str) -> None:
-    data = _load()
-    _user(data, str(chat_id))["lang"] = lang
-    _save(data)
+    init_db()
+    cid = str(chat_id)
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO users (chat_id, lang) VALUES (?, ?) "
+            "ON CONFLICT(chat_id) DO UPDATE SET lang = excluded.lang",
+            (cid, lang),
+        )
+        conn.commit()
 
 
 def get_certs(chat_id) -> list[dict]:
-    data = _load()
-    return _user(data, str(chat_id))["certs"]
+    init_db()
+    cid = str(chat_id)
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check "
+            "FROM certs WHERE chat_id = ? ORDER BY id",
+            (cid,),
+        ).fetchall()
+        return [_row_to_cert(r) for r in rows]
 
 
 def get_cert(chat_id, cert_id: int) -> dict | None:
-    return next((c for c in get_certs(chat_id) if c["id"] == cert_id), None)
+    init_db()
+    cid = str(chat_id)
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check "
+            "FROM certs WHERE chat_id = ? AND id = ?",
+            (cid, cert_id),
+        ).fetchone()
+        return _row_to_cert(row) if row else None
 
 
 def count_certs(chat_id) -> int:
-    return len(get_certs(chat_id))
+    init_db()
+    cid = str(chat_id)
+    with _connect() as conn:
+        r = conn.execute(
+            "SELECT COUNT(*) AS c FROM certs WHERE chat_id = ?", (cid,)
+        ).fetchone()
+        return int(r["c"])
 
 
 def can_add_cert(chat_id) -> bool:
@@ -92,46 +206,84 @@ def can_add_cert(chat_id) -> bool:
 
 
 def add_cert(chat_id, label: str, pnr: str, center_date: str, birth: str) -> dict:
-    data = _load()
+    init_db()
     cid = str(chat_id)
-    user = _user(data, cid)
-    cert = {
-        "id":          _next_id(user["certs"]),
-        "label":       label,
-        "pnr":         pnr,
-        "center_date": center_date,
-        "birth":       birth,
-        "added_at":    datetime.now().isoformat(),
-        "last_status": "not_found",
-        "last_check":  None,
-    }
-    user["certs"].append(cert)
-    _save(data)
-    return cert
+    with _connect() as conn:
+        _ensure_user(conn, cid)
+        row = conn.execute(
+            "SELECT COALESCE(MAX(id), 0) + 1 AS n FROM certs WHERE chat_id = ?", (cid,)
+        ).fetchone()
+        next_id = int(row["n"])
+        cert = {
+            "id": next_id,
+            "label": label,
+            "pnr": pnr,
+            "center_date": center_date,
+            "birth": birth,
+            "added_at": datetime.now().isoformat(),
+            "last_status": "not_found",
+            "last_check": None,
+        }
+        conn.execute(
+            """
+            INSERT INTO certs (
+                chat_id, id, label, pnr, center_date, birth,
+                added_at, last_status, last_check
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                cid,
+                cert["id"],
+                cert["label"],
+                cert["pnr"],
+                cert["center_date"],
+                cert["birth"],
+                cert["added_at"],
+                cert["last_status"],
+                cert["last_check"],
+            ),
+        )
+        conn.commit()
+        return cert
 
 
 def delete_cert(chat_id, cert_id: int) -> bool:
-    data = _load()
+    init_db()
     cid = str(chat_id)
-    user = _user(data, cid)
-    before = len(user["certs"])
-    user["certs"] = [c for c in user["certs"] if c["id"] != cert_id]
-    if len(user["certs"]) < before:
-        _save(data)
-        return True
-    return False
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM certs WHERE chat_id = ? AND id = ?", (cid, cert_id))
+        conn.commit()
+        return cur.rowcount > 0
 
 
 def update_cert_status(chat_id, cert_id: int, status: str) -> None:
-    data = _load()
+    init_db()
     cid = str(chat_id)
-    for cert in _user(data, cid)["certs"]:
-        if cert["id"] == cert_id:
-            cert["last_status"] = status
-            cert["last_check"]  = datetime.now().isoformat()
-            break
-    _save(data)
+    now = datetime.now().isoformat()
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE certs SET last_status = ?, last_check = ?
+            WHERE chat_id = ? AND id = ?
+            """,
+            (status, now, cid, cert_id),
+        )
+        conn.commit()
 
 
 def get_all_users() -> dict:
-    return _load()
+    """Формат як у старому JSON — для scheduler."""
+    init_db()
+    with _connect() as conn:
+        users: dict[str, dict] = {}
+        for row in conn.execute("SELECT chat_id, lang FROM users"):
+            users[row["chat_id"]] = {"lang": row["lang"], "certs": []}
+        for row in conn.execute(
+            "SELECT chat_id, id, label, pnr, center_date, birth, added_at, last_status, last_check "
+            "FROM certs ORDER BY chat_id, id"
+        ):
+            cid = row["chat_id"]
+            if cid not in users:
+                users[cid] = {"lang": "ua", "certs": []}
+            users[cid]["certs"].append(_row_to_cert(row))
+        return users
