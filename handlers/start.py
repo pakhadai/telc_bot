@@ -22,6 +22,24 @@ def get_main_menu_markup(lang: str) -> InlineKeyboardMarkup:
     ])
 
 
+async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    lang = storage.get_lang(update.effective_chat.id)
+    await update.message.reply_text(
+        t("cmd_menu_title", lang),
+        reply_markup=get_main_menu_markup(lang),
+    )
+
+
+async def fallback_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.message:
+        return
+    lang = storage.get_lang(update.effective_chat.id)
+    await update.message.reply_text(
+        t("use_menu", lang),
+        reply_markup=get_main_menu_markup(lang),
+    )
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
 
@@ -61,4 +79,5 @@ async def on_first_lang_pick(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 start_handler = CommandHandler("start", cmd_start)
+menu_handler = CommandHandler("menu", cmd_menu)
 first_lang_handler = CallbackQueryHandler(on_first_lang_pick, pattern=r"^lang:")

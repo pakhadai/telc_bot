@@ -29,12 +29,18 @@ from config import (
     SQLITE_PATH,
     DATABASE_URL,
 )
-from handlers.start import start_handler, first_lang_handler
+from handlers.start import (
+    start_handler,
+    first_lang_handler,
+    menu_handler,
+    fallback_text,
+)
 from handlers.tracking import (
     ASK_LABEL, ASK_PNR, ASK_ISSUE_DATE, ASK_BIRTH,
     got_label, got_pnr, got_issue_date, got_birth, cancel,
 )
 from handlers.menu import menu_callback_handler, setlang_callback_handler
+from handlers.editing import build_edit_conversation
 from handlers.inline import inline_handler
 from scheduler import setup_scheduler
 
@@ -81,9 +87,13 @@ def build_app() -> Application:
 
     # ── 1. /start + перший вибір мови (lang:* — лише старт; setlang:* у menu) ──
     app.add_handler(start_handler)
+    app.add_handler(menu_handler)
     app.add_handler(first_lang_handler)
 
-    # ── 2. Add-tracking conversation ─────────────────────────────────────────
+    # ── 2. Edit certificate (до add_conv — щоб menu:editfield не перехопив add) ─
+    app.add_handler(build_edit_conversation())
+
+    # ── 3. Add-tracking conversation (menu:* entry, крім editfield) ───────────
     #    Entry: menu:add callback → got_label → got_pnr → got_issue_date → got_birth
     add_conv = ConversationHandler(
         entry_points=[menu_callback_handler],   # menu:add sets state ASK_LABEL
@@ -100,11 +110,16 @@ def build_app() -> Application:
     )
     app.add_handler(add_conv)
 
-    # ── 3. Other callbacks ────────────────────────────────────────────────────
+    # ── 4. Other callbacks ────────────────────────────────────────────────────
     app.add_handler(setlang_callback_handler)
     app.add_handler(inline_handler)
 
-    # ── 4. Scheduler через post_init ─────────────────────────────────────────
+    # ── 5. Текст без активного сценарію — підказка + меню ────────────────────
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, fallback_text)
+    )
+
+    # ── 6. Scheduler через post_init ─────────────────────────────────────────
     #    post_init викликається ПІСЛЯ того як PTB запустив event loop,
     #    але ДО того як починається polling. Це єдиний безпечний спосіб
     #    стартувати APScheduler разом з asyncio.

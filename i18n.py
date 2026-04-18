@@ -46,10 +46,74 @@ _S: dict[str, dict[str, str]] = {
     "btn_list":      {"ua": "📋 Мої сертифікати", "de": "📋 Meine Zertifikate","en": "📋 My certs"},
     "btn_check_all": {"ua": "🔍 Перевірити всі",  "de": "🔍 Alle prüfen",     "en": "🔍 Check all"},
     "btn_check":     {"ua": "📊 Перевірити",      "de": "📊 Prüfen",          "en": "📊 Check"},
+    "btn_view_saved": {
+        "ua": "📋 Збережений результат",
+        "de": "📋 Gespeichertes Ergebnis",
+        "en": "📋 Saved result",
+    },
     "btn_test":      {"ua": "🧪 Тест",            "de": "🧪 Test",            "en": "🧪 Test"},
     "btn_delete":    {"ua": "🗑 Видалити",        "de": "🗑 Löschen",         "en": "🗑 Delete"},
     "btn_back":      {"ua": "◀️ Назад",           "de": "◀️ Zurück",          "en": "◀️ Back"},
     "btn_lang":      {"ua": "🌐 Мова",            "de": "🌐 Sprache",         "en": "🌐 Language"},
+    "btn_home": {
+        "ua": "◀️ Головне меню",
+        "de": "◀️ Hauptmenü",
+        "en": "◀️ Main menu",
+    },
+    "btn_edit": {"ua": "✏️ Редагувати", "de": "✏️ Bearbeiten", "en": "✏️ Edit"},
+    "btn_yes_delete": {
+        "ua": "✅ Так, видалити",
+        "de": "✅ Ja, löschen",
+        "en": "✅ Yes, delete",
+    },
+    "btn_cancel_short": {
+        "ua": "❌ Скасувати",
+        "de": "❌ Abbrechen",
+        "en": "❌ Cancel",
+    },
+    "cmd_menu_title": {
+        "ua": "📱 Меню:",
+        "de": "📱 Menü:",
+        "en": "📱 Menu:",
+    },
+    "use_menu": {
+        "ua": "Скористайтесь кнопками меню 👇",
+        "de": "Bitte nutze das Menü 👇",
+        "en": "Please use the menu buttons 👇",
+    },
+    "confirm_delete": {
+        "ua": "Видалити відстеження *{label}*? Цю дію не можна скасувати після підтвердження.",
+        "de": "Tracking *{label}* wirklich löschen? Das kann danach nicht rückgängig gemacht werden.",
+        "en": "Delete tracking *{label}*? This cannot be undone after you confirm.",
+    },
+    "edit_pick_field": {
+        "ua": "✏️ Оберіть поле для зміни:",
+        "de": "✏️ Wähle ein Feld zum Ändern:",
+        "en": "✏️ Choose a field to edit:",
+    },
+    "edit_field_label": {"ua": "Мітка", "de": "Bezeichnung", "en": "Label"},
+    "edit_field_pnr": {"ua": "Teilnehmernummer (PNR)", "de": "Teilnehmernummer (PNR)", "en": "Participant number (PNR)"},
+    "edit_field_center_date": {
+        "ua": "Дата видачі (Datum der Ausstellung)",
+        "de": "Datum der Ausstellung",
+        "en": "Issue date (Datum der Ausstellung)",
+    },
+    "edit_field_birth": {"ua": "Geburtsdatum", "de": "Geburtsdatum", "en": "Date of birth"},
+    "edit_ask_new_value": {
+        "ua": "Введіть нове значення для: *{field}*",
+        "de": "Neuen Wert eingeben für: *{field}*",
+        "en": "Enter a new value for: *{field}*",
+    },
+    "edit_saved": {
+        "ua": "✅ Збережено.",
+        "de": "✅ Gespeichert.",
+        "en": "✅ Saved.",
+    },
+    "edit_cancelled": {
+        "ua": "❌ Редагування скасовано.",
+        "de": "❌ Bearbeitung abgebrochen.",
+        "en": "❌ Editing cancelled.",
+    },
 
     # ── Certificate list ──────────────────────────────────────────────────────
     "cert_list_header": {

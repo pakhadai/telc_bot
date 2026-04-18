@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS certs (
 _CREATE_INDEX = "CREATE INDEX IF NOT EXISTS idx_certs_chat ON certs(chat_id);"
 
 
+def _row_get(row: Any, key: str, default=None):
+    if isinstance(row, dict):
+        return row.get(key, default)
+    try:
+        return row[key]
+    except (KeyError, IndexError):
+        return default
+
+
 def _adapt_sql(sql: str) -> str:
     if _USE_PG:
         return sql.replace("?", "%s")
@@ -110,6 +119,26 @@ def _init_schema(conn: Any) -> None:
     _execute(conn, _CREATE_INDEX)
 
 
+def _ensure_cert_extra_columns(conn: Any) -> None:
+    """ALTER TABLE: completed_at, cached_result (JSON text)."""
+    if _USE_PG:
+        _execute(
+            conn,
+            "ALTER TABLE certs ADD COLUMN IF NOT EXISTS completed_at TEXT",
+        )
+        _execute(
+            conn,
+            "ALTER TABLE certs ADD COLUMN IF NOT EXISTS cached_result TEXT",
+        )
+    else:
+        rows = _execute(conn, "PRAGMA table_info(certs)", fetch="all") or []
+        names = {r["name"] for r in rows}
+        if "completed_at" not in names:
+            _execute(conn, "ALTER TABLE certs ADD COLUMN completed_at TEXT")
+        if "cached_result" not in names:
+            _execute(conn, "ALTER TABLE certs ADD COLUMN cached_result TEXT")
+
+
 def _migrate_json_if_needed(conn: Any) -> None:
     row = _execute(conn, "SELECT COUNT(*) AS c FROM users", fetch="one")
     n = int(row["c"]) if row is not None else 0
@@ -146,8 +175,9 @@ def _migrate_json_if_needed(conn: Any) -> None:
                 """
                 INSERT INTO certs (
                     chat_id, id, label, pnr, center_date, birth,
-                    added_at, last_status, last_check
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    added_at, last_status, last_check,
+                    completed_at, cached_result
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(chat_id, id) DO UPDATE SET
                     label = excluded.label,
                     pnr = excluded.pnr,
@@ -155,7 +185,9 @@ def _migrate_json_if_needed(conn: Any) -> None:
                     birth = excluded.birth,
                     added_at = excluded.added_at,
                     last_status = excluded.last_status,
-                    last_check = excluded.last_check
+                    last_check = excluded.last_check,
+                    completed_at = excluded.completed_at,
+                    cached_result = excluded.cached_result
                 """,
                 (
                     str(cid),
@@ -167,6 +199,8 @@ def _migrate_json_if_needed(conn: Any) -> None:
                     str(c.get("added_at", datetime.now().isoformat())),
                     str(c.get("last_status", "not_found")),
                     c.get("last_check"),
+                    c.get("completed_at"),
+                    c.get("cached_result"),
                 ),
             )
     try:
@@ -181,6 +215,7 @@ def init_db() -> None:
         return
     with _session() as conn:
         _init_schema(conn)
+        _ensure_cert_extra_columns(conn)
         _migrate_json_if_needed(conn)
     _db_ready = True
 
@@ -189,9 +224,24 @@ def backend_label() -> str:
     return "postgresql" if _USE_PG else "sqlite"
 
 
+def _parse_cached_result(raw: Any) -> dict | None:
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            out = json.loads(raw)
+            return out if isinstance(out, dict) else None
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
 def _row_to_cert(row: Any) -> dict[str, Any]:
     if row is None:
         raise TypeError("row is None")
+    raw_cached = _row_get(row, "cached_result")
     return {
         "id": row["id"],
         "label": row["label"],
@@ -201,6 +251,8 @@ def _row_to_cert(row: Any) -> dict[str, Any]:
         "added_at": row["added_at"],
         "last_status": row["last_status"],
         "last_check": row["last_check"],
+        "completed_at": _row_get(row, "completed_at"),
+        "cached_result": _parse_cached_result(raw_cached),
     }
 
 
@@ -235,7 +287,8 @@ def get_certs(chat_id) -> list[dict]:
     with _session() as conn:
         rows = _execute(
             conn,
-            "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check "
+            "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check, "
+            "completed_at, cached_result "
             "FROM certs WHERE chat_id = ? ORDER BY id",
             (cid,),
             fetch="all",
@@ -249,7 +302,8 @@ def get_cert(chat_id, cert_id: int) -> dict | None:
     with _session() as conn:
         row = _execute(
             conn,
-            "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check "
+            "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check, "
+            "completed_at, cached_result "
             "FROM certs WHERE chat_id = ? AND id = ?",
             (cid, cert_id),
             fetch="one",
@@ -303,8 +357,8 @@ def add_cert(chat_id, label: str, pnr: str, center_date: str, birth: str) -> dic
             """
             INSERT INTO certs (
                 chat_id, id, label, pnr, center_date, birth,
-                added_at, last_status, last_check
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                added_at, last_status, last_check, completed_at, cached_result
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 cid,
@@ -316,6 +370,8 @@ def add_cert(chat_id, label: str, pnr: str, center_date: str, birth: str) -> dic
                 cert["added_at"],
                 cert["last_status"],
                 cert["last_check"],
+                None,
+                None,
             ),
         )
         return cert
@@ -345,6 +401,74 @@ def update_cert_status(chat_id, cert_id: int, status: str) -> None:
         )
 
 
+_EDITABLE_FIELDS = frozenset({"label", "pnr", "center_date", "birth"})
+
+
+def save_cert_completion(
+    chat_id, cert_id: int, status: str, formatted_block: str
+) -> None:
+    """Зберегти текст результату (format_result) і позначити перевірку завершеною."""
+    init_db()
+    cid = str(chat_id)
+    now = datetime.now().isoformat()
+    blob = json.dumps({"formatted": formatted_block}, ensure_ascii=False)
+    with _session() as conn:
+        _execute(
+            conn,
+            """
+            UPDATE certs SET
+                last_status = ?,
+                last_check = ?,
+                completed_at = ?,
+                cached_result = ?
+            WHERE chat_id = ? AND id = ?
+            """,
+            (status, now, now, blob, cid, cert_id),
+        )
+
+
+def update_cert_field(chat_id, cert_id: int, field: str, value: str) -> bool:
+    if field not in _EDITABLE_FIELDS:
+        raise ValueError(f"Unsupported field: {field}")
+    init_db()
+    cid = str(chat_id)
+    val = value.strip()
+    if field == "label" and not val:
+        return False
+    if field in ("pnr", "center_date", "birth") and not val:
+        return False
+    with _session() as conn:
+        row = _execute(
+            conn,
+            "SELECT 1 FROM certs WHERE chat_id = ? AND id = ?",
+            (cid, cert_id),
+            fetch="one",
+        )
+        if not row:
+            return False
+        if field in ("pnr", "center_date"):
+            _execute(
+                conn,
+                f"""
+                UPDATE certs SET {field} = ?,
+                    completed_at = NULL,
+                    cached_result = NULL
+                WHERE chat_id = ? AND id = ?
+                """,
+                (val, cid, cert_id),
+            )
+        else:
+            _execute(
+                conn,
+                f"""
+                UPDATE certs SET {field} = ?
+                WHERE chat_id = ? AND id = ?
+                """,
+                (val, cid, cert_id),
+            )
+    return True
+
+
 def get_all_users() -> dict:
     """Формат як у старому JSON — для scheduler."""
     init_db()
@@ -354,7 +478,8 @@ def get_all_users() -> dict:
             users[str(row["chat_id"])] = {"lang": row["lang"], "certs": []}
         all_certs = _execute(
             conn,
-            "SELECT chat_id, id, label, pnr, center_date, birth, added_at, last_status, last_check "
+            "SELECT chat_id, id, label, pnr, center_date, birth, added_at, last_status, last_check, "
+            "completed_at, cached_result "
             "FROM certs ORDER BY chat_id, id",
             fetch="all",
         ) or []
