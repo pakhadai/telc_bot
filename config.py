@@ -8,6 +8,19 @@ from pathlib import Path
 _BASE_DIR = Path(__file__).resolve().parent
 
 
+def _database_url() -> str | None:
+    """
+    Railway Postgres дає DATABASE_URL (інколи з префіксом postgres://).
+    Якщо задано — storage використовує PostgreSQL замість SQLite.
+    """
+    raw = (os.getenv("DATABASE_URL") or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("postgres://"):
+        return "postgresql://" + raw[len("postgres://") :]
+    return raw
+
+
 def _read_bot_token() -> str:
     """Railway / Docker: змінна `BOT_TOKEN`. Дублікат імені: `TELEGRAM_BOT_TOKEN`."""
     raw = (os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -31,7 +44,9 @@ SCHEDULER_TIMEZONE: str = "Europe/Berlin"
 USER_DELAY_SECONDS: float = 2.0
 
 # ── Persistence ───────────────────────────────────────────────────────────────
-# SQLite (основне сховище). На Railway: volume + SQLITE_PATH=/data/telc.sqlite
+# PostgreSQL: змінна DATABASE_URL (Railway підставляє з плагіна Postgres).
+# SQLite: якщо DATABASE_URL немає — файл SQLITE_PATH (volume на Railway за бажання).
+DATABASE_URL: str | None = _database_url()
 SQLITE_PATH: Path = Path(
     os.getenv("SQLITE_PATH", str(_BASE_DIR / "telc_bot.sqlite"))
 ).expanduser()

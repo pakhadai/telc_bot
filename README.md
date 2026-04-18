@@ -1,8 +1,8 @@
 # TELC Result Tracker Bot
 
-Telegram-бот для відстеження результатів іспитів на [results.telc.net](https://results.telc.net/). Розрахований на **особисте користування** (ти й кілька друзів): дані в **SQLite** (stdlib), без окремого сервера БД. Старий `users_data.json` при першому запуску **одноразово** імпортується в SQLite, якщо БД ще порожня.
+Telegram-бот для відстеження результатів іспитів на [results.telc.net](https://results.telc.net/). Розрахований на **особисте користування** (ти й кілька друзів): дані в **PostgreSQL** (якщо задано `DATABASE_URL`, наприклад плагін Railway Postgres) або в **SQLite** у файлі. Старий `users_data.json` при першому запуску **одноразово** імпортується, якщо таблиці порожні.
 
-**Стек:** Python ≥ 3.11 · [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) v21 · [aiohttp](https://docs.aiohttp.org/) · [APScheduler](https://apscheduler.readthedocs.io/)
+**Стек:** Python ≥ 3.11 · [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) v21 · [aiohttp](https://docs.aiohttp.org/) · [APScheduler](https://apscheduler.readthedocs.io/) · SQLite або [PostgreSQL](https://www.postgresql.org/) ([psycopg](https://www.psycopg.org/) 3)
 
 **Як працює перевірка:** бот викликає **публічні JSON API** порталу TELC (lookup → деталі сертифіката), а не headless-браузер. Це легше для хостингу (Railway тощо) і швидше, ніж рендер SPA.
 
@@ -26,7 +26,7 @@ telc_bot/
 ├── main.py              # Точка входу, реєстрація хендлерів, post_init → scheduler
 ├── config.py            # Константи, dataclass CertResult
 ├── i18n.py              # Рядки UI (UA / DE / EN)
-├── storage.py           # SQLite: користувачі та сертифікати
+├── storage.py           # Postgres (DATABASE_URL) або SQLite
 ├── scheduler.py         # APScheduler + безпечна відправка в Telegram
 ├── requirements.txt
 │
@@ -98,7 +98,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Файл **`telc_bot.sqlite`** з’явиться після першого збереження (або шлях з **`SQLITE_PATH`**). Файл БД у `.gitignore`; старий `users_data.json` після міграції перейменовується на `*.json.migrated`.
+Без Postgres з’явиться файл **`telc_bot.sqlite`** (або шлях з **`SQLITE_PATH`**). Файл SQLite у `.gitignore`; старий `users_data.json` після міграції перейменовується на `*.json.migrated`.
 
 ### 4. Inline (опційно)
 
@@ -110,7 +110,8 @@ python main.py
 
 | Параметр | За замовчуванням | Опис |
 |----------|------------------|------|
-| `SQLITE_PATH` (env) | `telc_bot.sqlite` у каталозі проєкту | Шлях до файлу SQLite; на Railway з volume — наприклад `/data/telc.sqlite` |
+| `DATABASE_URL` (env) | — | Якщо задано (Railway Postgres) — дані в **PostgreSQL**, інакше SQLite |
+| `SQLITE_PATH` (env) | `telc_bot.sqlite` у каталозі проєкту | Лише без `DATABASE_URL`; на Railway з volume — наприклад `/data/telc.sqlite` |
 | `DATE_SEARCH_RANGE` | `21` | Днів ± від введеної дати видачі |
 | `CHECK_TIMES` | `(9,0)`, `(17,0)` | Години перевірок (Europe/Berlin) |
 | `USER_DELAY_SECONDS` | `2.0` | Пауза між користувачами під час планового циклу |
@@ -134,7 +135,9 @@ python main.py
 
 **Якщо Conflict лишається після видалення старого проєкту:** зазвичай десь ще «живе» той самий токен — ПК, інший хостинг, або друг із копією коду. Найнадійніше: у @BotFather → **/revoke** для бота → новий токен → лише в **Variables** нового Railway-сервісу → Redeploy. Перевір у Railway: **Replicas = 1**, у проєкті лише **один** сервіс із цим репо.
 
-**База між деплоями на Railway:** файли в контейнері **не** зберігаються, якщо немає volume. Додай **Volume** (наприклад точка монтування `/data`) і змінну **`SQLITE_PATH=/data/telc.sqlite`**. Локально за замовчуванням використовується `telc_bot.sqlite` поруч із кодом.
+**Найпростіше на Railway — PostgreSQL (не Redis):** у проєкті **New** → **Database** → **PostgreSQL**. Потім у сервісі бота у **Variables** додай **`DATABASE_URL`** через **Add variable** → **Reference** на змінну з Postgres (Railway підставить URL). Redis для цих даних не підходить — там немає зручних таблиць під твою схему.
+
+**Альтернатива без Postgres:** **Volume** наприклад `/data` і **`SQLITE_PATH=/data/telc.sqlite`** — тоді SQLite переживе redeploy.
 
 ---
 

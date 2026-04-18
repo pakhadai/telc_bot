@@ -21,7 +21,14 @@ from telegram.ext import (
 
 import storage
 
-from config import BOT_TOKEN, LOG_FILE, CHECK_TIMES, SCHEDULER_TIMEZONE, SQLITE_PATH
+from config import (
+    BOT_TOKEN,
+    LOG_FILE,
+    CHECK_TIMES,
+    SCHEDULER_TIMEZONE,
+    SQLITE_PATH,
+    DATABASE_URL,
+)
 from handlers.start import start_handler, first_lang_handler
 from handlers.tracking import (
     ASK_LABEL, ASK_PNR, ASK_ISSUE_DATE, ASK_BIRTH,
@@ -126,7 +133,10 @@ def build_app() -> Application:
 def main() -> None:
     app = build_app()
     storage.init_db()
-    logger.info("SQLite database: %s", SQLITE_PATH)
+    if DATABASE_URL:
+        logger.info("Storage: PostgreSQL (DATABASE_URL)")
+    else:
+        logger.info("Storage: SQLite — %s", SQLITE_PATH)
     logger.info("TELC Tracker Bot starting...")
     app.run_polling(
         allowed_updates=Update.ALL_TYPES,
