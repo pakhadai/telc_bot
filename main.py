@@ -9,8 +9,10 @@ import logging
 import sys
 
 from telegram import Update
+from telegram.error import Conflict
 from telegram.ext import (
     Application,
+    ContextTypes,
     ConversationHandler,
     MessageHandler,
     CommandHandler,
@@ -18,7 +20,7 @@ from telegram.ext import (
 )
 
 from config import BOT_TOKEN, LOG_FILE, CHECK_TIMES, SCHEDULER_TIMEZONE
-from handlers.start import lang_conv_handler
+from handlers.start import start_handler, first_lang_handler
 from handlers.tracking import (
     ASK_LABEL, ASK_PNR, ASK_ISSUE_DATE, ASK_BIRTH,
     got_label, got_pnr, got_issue_date, got_birth, cancel,
@@ -43,6 +45,18 @@ for noisy in ("httpx", "httpcore", "apscheduler.executors", "telegram.ext.ExtBot
 logger = logging.getLogger(__name__)
 
 
+async def on_ptb_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    err = context.error
+    if isinstance(err, Conflict):
+        logger.error(
+            "Telegram Conflict: інший процес теж робить getUpdates з цим BOT_TOKEN. "
+            "Зупини локальний `python main.py`, другий сервіс на Railway або вистав "
+            "одну репліку — одночасно має працювати лише один екземпляр бота."
+        )
+        return
+    logger.error("Необроблена помилка PTB", exc_info=err)
+
+
 def build_app() -> Application:
     if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
         logger.error(
@@ -53,9 +67,11 @@ def build_app() -> Application:
         sys.exit(1)
 
     app = Application.builder().token(BOT_TOKEN).build()
+    app.add_error_handler(on_ptb_error)
 
-    # ── 1. /start + language picker ───────────────────────────────────────────
-    app.add_handler(lang_conv_handler)
+    # ── 1. /start + перший вибір мови (lang:* — лише старт; setlang:* у menu) ──
+    app.add_handler(start_handler)
+    app.add_handler(first_lang_handler)
 
     # ── 2. Add-tracking conversation ─────────────────────────────────────────
     #    Entry: menu:add callback → got_label → got_pnr → got_issue_date → got_birth
@@ -70,7 +86,6 @@ def build_app() -> Application:
         fallbacks=[CommandHandler("cancel", cancel)],
         name="add_conv",
         persistent=False,
-        per_message=True,  # entry через CallbackQuery (menu:add)
         conversation_timeout=300,   # 5 хв — якщо мовчить, скидаємо стан
     )
     app.add_handler(add_conv)

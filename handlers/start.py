@@ -1,19 +1,12 @@
 """
-handlers/start.py — /start + вибір мови.
+handlers/start.py — /start + перший вибір мови (без ConversationHandler — сумісно з PTB per_*).
 """
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    CommandHandler,
-    ConversationHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-)
+from telegram.ext import CommandHandler, CallbackQueryHandler, ContextTypes
 
 import storage
 from i18n import t, LANG_NAMES
-
-LANG_PICK = 0
 
 
 def get_main_menu_markup(lang: str) -> InlineKeyboardMarkup:
@@ -29,11 +22,9 @@ def get_main_menu_markup(lang: str) -> InlineKeyboardMarkup:
     ])
 
 
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
-    user = storage.get_lang(chat_id)
 
-    # Якщо мова вже збережена — одразу головне меню
     data = storage.get_all_users()
     if str(chat_id) in data and "lang" in data[str(chat_id)]:
         lang = storage.get_lang(chat_id)
@@ -46,18 +37,17 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )
-        return ConversationHandler.END
+        return
 
-    # Перший запуск — вибір мови
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(name, callback_data=f"lang:{code}")]
         for code, name in LANG_NAMES.items()
     ])
     await update.message.reply_text(t("choose_lang", "ua"), reply_markup=keyboard)
-    return LANG_PICK
 
 
-async def _lang_picked(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def on_first_lang_pick(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Перший вибір мови (callback `lang:*`); зміна мови з меню — `setlang:*` у menu.py."""
     query = update.callback_query
     await query.answer()
     lang = query.data.split(":")[1]
@@ -68,16 +58,7 @@ async def _lang_picked(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         parse_mode="Markdown",
         disable_web_page_preview=True,
     )
-    return ConversationHandler.END
 
-
-lang_conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("start", cmd_start)],
-    states={LANG_PICK: [CallbackQueryHandler(_lang_picked, pattern=r"^lang:")]},
-    fallbacks=[],
-    name="lang_conv",
-    persistent=False,
-    per_message=True,  # CallbackQuery — коректний ключ розмови (без PTBUserWarning)
-)
 
 start_handler = CommandHandler("start", cmd_start)
+first_lang_handler = CallbackQueryHandler(on_first_lang_pick, pattern=r"^lang:")

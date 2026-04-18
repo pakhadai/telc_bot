@@ -129,6 +129,7 @@ python main.py
 1. Репозиторій на GitHub → New Project у [Railway](https://railway.app) з цього repo.
 2. У **Variables** сервісу додай **`BOT_TOKEN`** = токен від @BotFather (ім’я змінної саме таке, без лапок у значенні). Альтернатива: **`TELEGRAM_BOT_TOKEN`**. Після зміни змінних натисни **Redeploy**.
 3. Команда старту: `python main.py` (або `Procfile` з `worker: python main.py`).
+4. **Один процес на `BOT_TOKEN`.** Не запускай одночасно локально `python main.py` і той самий бот на Railway (або два сервіси з одним токеном) — Telegram поверне `Conflict: terminated by other getUpdates request`. Має працювати лише **один** екземпляр, що викликає `getUpdates`.
 
 Пам’ятай: **персистентний диск** — якщо `users_data.json` має зберігатися між деплоями, підключи volume або зовнішнє сховище; інакше після redeploy список сертифікатів обнулиться.
 
