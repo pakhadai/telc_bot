@@ -142,6 +142,25 @@ python main.py
 
 ---
 
+## GitHub: перший push
+
+У каталозі проєкту вже є `git init` і перший commit на гілці `main`.
+
+1. На [github.com/new](https://github.com/new) створи **порожній** репозиторій (наприклад `telc_bot`), **Private**, без README — щоб не було конфлікту з історією.
+2. У PowerShell:
+
+   ```powershell
+   cd "C:\Users\Dmytro\Desktop\тест\telc_bot"
+   git remote add origin https://github.com/ТВІЙ_НІК/telc_bot.git
+   git push -u origin main
+   ```
+
+   Якщо `origin` уже був — `git remote set-url origin https://github.com/...`.
+
+3. Авторизація: GitHub з 2021 зазвичай через **Personal Access Token** замість пароля, або [GitHub Desktop](https://desktop.github.com/), або встанови [GitHub CLI](https://cli.github.com/) (`gh auth login`) і тоді можна `gh repo create telc_bot --private --source=. --remote=origin --push`.
+
+---
+
 ## Ліцензія
 
 Приватний / особистий проєкт — використовуй на свій розсуд.
