@@ -49,9 +49,10 @@ async def on_ptb_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> No
     err = context.error
     if isinstance(err, Conflict):
         logger.error(
-            "Telegram Conflict: інший процес теж робить getUpdates з цим BOT_TOKEN. "
-            "Зупини локальний `python main.py`, другий сервіс на Railway або вистав "
-            "одну репліку — одночасно має працювати лише один екземпляр бота."
+            "Telegram Conflict: хтось інший уже викликає getUpdates з цим BOT_TOKEN. "
+            "Перевір: (1) зупини локальний бот / інший хостинг; (2) у @BotFather /revoke "
+            "і встав НОВИЙ токен лише в Railway; (3) один сервіс, одна репліка; "
+            "(4) ніхто з друзів не запускає цей самий токен у себе."
         )
         return
     logger.error("Необроблена помилка PTB", exc_info=err)
@@ -101,6 +102,10 @@ def build_app() -> Application:
     scheduler = setup_scheduler(app)
 
     async def _start_scheduler(application: Application) -> None:
+        # Якщо колись увімкнули webhook — long polling не працюватиме без скидання.
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Webhook cleared (polling mode).")
+
         scheduler.start()
         times = " & ".join(f"{h:02d}:{m:02d}" for h, m in CHECK_TIMES)
         logger.info("Scheduler started. Checks: %s (%s)", times, SCHEDULER_TIMEZONE)
