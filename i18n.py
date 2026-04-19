@@ -384,6 +384,23 @@ _S: dict[str, dict[str, str]] = {
         "de": "⏳ Ich prüfe alle {n} Zertifikate...",
         "en": "⏳ Checking all {n} certificates...",
     },
+    "manual_scan_limit": {
+        "ua": (
+            "⏳ *Ручна перевірка вже використана сьогодні.*\n\n"
+            "Один додатковий запит на день (CET) — щоб не навантажувати TELC.\n"
+            "Автоматичні перевірки о *09:00* та *17:00* як і раніше."
+        ),
+        "de": (
+            "⏳ *Manuelle Prüfung für heute schon verbraucht.*\n\n"
+            "Ein zusätzlicher Abruf pro Kalendertag (CET).\n"
+            "Automatische Läufe um *09:00* und *17:00* bleiben aktiv."
+        ),
+        "en": (
+            "⏳ *You already used your manual check today.*\n\n"
+            "One extra check per calendar day (CET) to avoid hammering TELC.\n"
+            "Scheduled checks at *09:00* and *17:00* still run."
+        ),
+    },
     "cancelled": {
         "ua": "❌ Скасовано. /start щоб почати знову.",
         "de": "❌ Abgebrochen. /start zum Neustart.",

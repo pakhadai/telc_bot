@@ -171,6 +171,14 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=home_reply_markup(lang),
             )
             return
+        if not storage.manual_scan_available_today(chat_id):
+            await query.message.reply_text(
+                t("manual_scan_limit", lang),
+                parse_mode="Markdown",
+                reply_markup=home_reply_markup(lang),
+            )
+            return
+        storage.record_manual_scan(chat_id)
         loading = await query.message.reply_text(t("checking", lang))
         result = await check_telc(
             cert["pnr"],
@@ -204,6 +212,23 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]]),
             )
             return
+        needs_live = any(
+            not (
+                c.get("completed_at")
+                and isinstance(c.get("cached_result"), dict)
+                and (c.get("cached_result") or {}).get("formatted")
+            )
+            for c in certs
+        )
+        if needs_live and not storage.manual_scan_available_today(chat_id):
+            await query.message.reply_text(
+                t("manual_scan_limit", lang),
+                parse_mode="Markdown",
+                reply_markup=home_reply_markup(lang),
+            )
+            return
+        if needs_live:
+            storage.record_manual_scan(chat_id)
         loading = await query.message.reply_text(
             t("checking_all", lang, n=len(certs)),
         )

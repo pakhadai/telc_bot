@@ -17,8 +17,9 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from config import DATA_FILE, DATABASE_URL, SQLITE_PATH
+from config import DATA_FILE, DATABASE_URL, SCHEDULER_TIMEZONE, SQLITE_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,24 @@ def _init_schema(conn: Any) -> None:
     _execute(conn, _CREATE_USERS)
     _execute(conn, _CREATE_CERTS)
     _execute(conn, _CREATE_INDEX)
+
+
+def _ensure_users_extra_columns(conn: Any) -> None:
+    """ALTER users: last_manual_scan_date (YYYY-MM-DD, Europe/Berlin)."""
+    if _USE_PG:
+        _execute(
+            conn,
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_manual_scan_date TEXT",
+        )
+    else:
+        rows = _execute(conn, "PRAGMA table_info(users)", fetch="all") or []
+        names = {r["name"] for r in rows}
+        if "last_manual_scan_date" not in names:
+            _execute(conn, "ALTER TABLE users ADD COLUMN last_manual_scan_date TEXT")
+
+
+def _berlin_today_iso() -> str:
+    return datetime.now(ZoneInfo(SCHEDULER_TIMEZONE)).date().isoformat()
 
 
 def _ensure_cert_extra_columns(conn: Any) -> None:
@@ -226,6 +245,7 @@ def init_db() -> None:
         return
     with _session() as conn:
         _init_schema(conn)
+        _ensure_users_extra_columns(conn)
         _ensure_cert_extra_columns(conn)
         _migrate_json_if_needed(conn)
     _db_ready = True
@@ -269,6 +289,45 @@ def _row_to_cert(row: Any) -> dict[str, Any]:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
+
+def manual_scan_available_today(chat_id) -> bool:
+    """Чи можна зробити ручну перевірку (1 раз на календарний день, Europe/Berlin)."""
+    init_db()
+    cid = str(chat_id)
+    today = _berlin_today_iso()
+    with _session() as conn:
+        row = _execute(
+            conn,
+            "SELECT last_manual_scan_date FROM users WHERE chat_id = ?",
+            (cid,),
+            fetch="one",
+        )
+        if not row:
+            return True
+        raw = _row_get(row, "last_manual_scan_date")
+        if raw is None or str(raw).strip() == "":
+            return True
+        return str(raw).strip() != today
+
+
+def record_manual_scan(chat_id) -> None:
+    """Позначити, що сьогодні ручну перевірку вже використано."""
+    init_db()
+    cid = str(chat_id)
+    lang = get_lang(chat_id)
+    today = _berlin_today_iso()
+    with _session() as conn:
+        _execute(
+            conn,
+            """
+            INSERT INTO users (chat_id, lang, last_manual_scan_date)
+            VALUES (?, ?, ?)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                last_manual_scan_date = excluded.last_manual_scan_date
+            """,
+            (cid, lang, today),
+        )
 
 
 def get_lang(chat_id) -> str:
