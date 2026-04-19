@@ -21,8 +21,8 @@ from datetime import datetime
 
 import aiohttp
 
-from config import CertResult, DATE_SEARCH_RANGE
-from utils.dates import date_range
+from config import CertResult
+from utils.dates import telc_pruefung_dates
 from scraper.parser import parse_certificate_response
 
 logger = logging.getLogger(__name__)
@@ -146,18 +146,30 @@ async def _get_certificate(
     return data
 
 
-async def check_telc(pnr: str, center_date: str, birth: str) -> CertResult:
+async def check_telc(
+    pnr: str,
+    exam_date: str,
+    birth: str,
+    *,
+    initial_sweep_done: bool = False,
+) -> CertResult:
     """Публічний API — завжди повертає CertResult, ніколи не падає."""
     try:
-        return await _run(pnr, center_date, birth)
+        return await _run(pnr, exam_date, birth, initial_sweep_done=initial_sweep_done)
     except Exception as exc:
         logger.exception("Unexpected error in check_telc: %s", exc)
         return CertResult(found=False, status="error", error_message=str(exc))
 
 
-async def _run(pnr: str, center_date: str, birth: str) -> CertResult:
+async def _run(
+    pnr: str,
+    exam_date: str,
+    birth: str,
+    *,
+    initial_sweep_done: bool,
+) -> CertResult:
     birth_iso = _to_iso(birth)
-    dates     = date_range(center_date, DATE_SEARCH_RANGE)
+    dates     = telc_pruefung_dates(exam_date, initial_sweep_done)
     checked   = 0
 
     # TCPConnector без keepalive — кожна сесія незалежна (менший ризик блокування)

@@ -8,8 +8,7 @@ from telegram.ext import InlineQueryHandler, ContextTypes
 
 import storage
 from i18n import t
-from utils.dates import date_range_bounds
-from config import DATE_SEARCH_RANGE
+from utils.dates import describe_cert_scan_range
 
 
 async def _inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -30,7 +29,12 @@ async def _inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     results = []
     for cert in certs:
-        start, end = date_range_bounds(cert["center_date"], DATE_SEARCH_RANGE)
+        search_range = describe_cert_scan_range(
+            cert["center_date"],
+            lang,
+            initial_sweep_done=bool(cert.get("initial_sweep_done")),
+            completed_at=cert.get("completed_at"),
+        )
         status_key  = cert.get("last_status", "not_found")
         status_text = t(status_key, lang)
         icon = {"passed": "✅", "failed": "❌", "not_found": "🔄", "error": "⚠️"}.get(status_key, "🔄")
@@ -38,7 +42,7 @@ async def _inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         summary = (
             f"{icon} *[{cert['id']}] {cert['label']}*\n"
             f"👤 `{cert['pnr']}`\n"
-            f"📅 {start} – {end}\n"
+            f"📅 {search_range}\n"
             f"📊 {status_text}"
         )
         results.append(

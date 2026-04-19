@@ -65,8 +65,16 @@ async def _run_all_checks(app: Application) -> None:
 
                 prev_status = cert.get("last_status", "not_found")
 
-                result = await check_telc(cert["pnr"], cert["center_date"], cert["birth"])
+                result = await check_telc(
+                    cert["pnr"],
+                    cert["center_date"],
+                    cert["birth"],
+                    initial_sweep_done=bool(cert.get("initial_sweep_done")),
+                )
                 if not result.found:
+                    storage.update_cert_status(int(chat_id), cert["id"], result.status)
+                    if not cert.get("initial_sweep_done") and result.dates_checked > 0:
+                        storage.set_initial_sweep_done(int(chat_id), cert["id"], True)
                     continue
 
                 body = format_result(cert["pnr"], result, lang)
@@ -84,6 +92,10 @@ async def _run_all_checks(app: Application) -> None:
 
             except Exception as exc:
                 logger.error("Check failed for user=%s cert=%s: %s", chat_id, cert["id"], exc)
+                try:
+                    storage.update_cert_status(int(chat_id), cert["id"], "error")
+                except Exception:
+                    pass
 
             await asyncio.sleep(USER_DELAY_SECONDS)
 

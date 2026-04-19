@@ -14,8 +14,7 @@ from telegram.ext import (
 
 import storage
 from i18n import t
-from utils.dates import is_valid_date, date_range_bounds
-from config import DATE_SEARCH_RANGE
+from utils.dates import describe_cert_scan_range, is_valid_date
 
 ASK_LABEL, ASK_PNR, ASK_ISSUE_DATE, ASK_BIRTH = range(4)
 
@@ -81,9 +80,11 @@ async def got_birth(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     cert   = storage.add_cert(update.effective_chat.id, label, pnr, center, txt)
     context.user_data.clear()
 
-    start, end = date_range_bounds(center, DATE_SEARCH_RANGE)
+    search_range = describe_cert_scan_range(
+        center, lang, initial_sweep_done=False, completed_at=None
+    )
     await update.message.reply_text(
-        t("saved", lang, label=label, pnr=pnr, start=start, end=end, birth=txt),
+        t("saved", lang, label=label, pnr=pnr, search_range=search_range, birth=txt),
         parse_mode="Markdown",
     )
     return ConversationHandler.END

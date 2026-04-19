@@ -36,27 +36,3 @@ def format_result(pnr: str, result: CertResult, lang: str) -> str:
              score_oral=result.score_oral or "—",
              praedikat=result.praedikat or "—",
              status=status_text)
-
-
-def format_test_result(pnr: str, lang: str, found: bool) -> str:
-    """Return a test-mode message (no real TELC query)."""
-    import random
-    header = t("test_header", lang)
-    if found:
-        fake = CertResult(
-            found=True,
-            cert_type="paper",
-            issue_date="13.11.2025",
-            status="passed",
-            praedikat="Sehr gut",
-            score_total="271,0 / 300",
-            score_written="197,0 / 225",
-            score_oral="74,0 / 75",
-            exam_name="telc Deutsch B1",
-            exam_date="27.10.2025",
-            exam_center="HDS St. Gallen AG",
-        )
-        return header + format_result(pnr, fake, lang)
-    else:
-        fake = CertResult(found=False, dates_checked=43)
-        return header + format_result(pnr, fake, lang)

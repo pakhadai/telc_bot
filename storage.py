@@ -120,7 +120,7 @@ def _init_schema(conn: Any) -> None:
 
 
 def _ensure_cert_extra_columns(conn: Any) -> None:
-    """ALTER TABLE: completed_at, cached_result (JSON text)."""
+    """ALTER TABLE: completed_at, cached_result, initial_sweep_done."""
     if _USE_PG:
         _execute(
             conn,
@@ -130,6 +130,10 @@ def _ensure_cert_extra_columns(conn: Any) -> None:
             conn,
             "ALTER TABLE certs ADD COLUMN IF NOT EXISTS cached_result TEXT",
         )
+        _execute(
+            conn,
+            "ALTER TABLE certs ADD COLUMN IF NOT EXISTS initial_sweep_done BOOLEAN NOT NULL DEFAULT FALSE",
+        )
     else:
         rows = _execute(conn, "PRAGMA table_info(certs)", fetch="all") or []
         names = {r["name"] for r in rows}
@@ -137,6 +141,11 @@ def _ensure_cert_extra_columns(conn: Any) -> None:
             _execute(conn, "ALTER TABLE certs ADD COLUMN completed_at TEXT")
         if "cached_result" not in names:
             _execute(conn, "ALTER TABLE certs ADD COLUMN cached_result TEXT")
+        if "initial_sweep_done" not in names:
+            _execute(
+                conn,
+                "ALTER TABLE certs ADD COLUMN initial_sweep_done INTEGER NOT NULL DEFAULT 0",
+            )
 
 
 def _migrate_json_if_needed(conn: Any) -> None:
@@ -176,8 +185,8 @@ def _migrate_json_if_needed(conn: Any) -> None:
                 INSERT INTO certs (
                     chat_id, id, label, pnr, center_date, birth,
                     added_at, last_status, last_check,
-                    completed_at, cached_result
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    completed_at, cached_result, initial_sweep_done
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(chat_id, id) DO UPDATE SET
                     label = excluded.label,
                     pnr = excluded.pnr,
@@ -187,7 +196,8 @@ def _migrate_json_if_needed(conn: Any) -> None:
                     last_status = excluded.last_status,
                     last_check = excluded.last_check,
                     completed_at = excluded.completed_at,
-                    cached_result = excluded.cached_result
+                    cached_result = excluded.cached_result,
+                    initial_sweep_done = excluded.initial_sweep_done
                 """,
                 (
                     str(cid),
@@ -201,6 +211,7 @@ def _migrate_json_if_needed(conn: Any) -> None:
                     c.get("last_check"),
                     c.get("completed_at"),
                     c.get("cached_result"),
+                    bool(c.get("initial_sweep_done")),
                 ),
             )
     try:
@@ -253,6 +264,7 @@ def _row_to_cert(row: Any) -> dict[str, Any]:
         "last_check": row["last_check"],
         "completed_at": _row_get(row, "completed_at"),
         "cached_result": _parse_cached_result(raw_cached),
+        "initial_sweep_done": bool(_row_get(row, "initial_sweep_done")),
     }
 
 
@@ -288,7 +300,7 @@ def get_certs(chat_id) -> list[dict]:
         rows = _execute(
             conn,
             "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check, "
-            "completed_at, cached_result "
+            "completed_at, cached_result, initial_sweep_done "
             "FROM certs WHERE chat_id = ? ORDER BY id",
             (cid,),
             fetch="all",
@@ -303,7 +315,7 @@ def get_cert(chat_id, cert_id: int) -> dict | None:
         row = _execute(
             conn,
             "SELECT id, label, pnr, center_date, birth, added_at, last_status, last_check, "
-            "completed_at, cached_result "
+            "completed_at, cached_result, initial_sweep_done "
             "FROM certs WHERE chat_id = ? AND id = ?",
             (cid, cert_id),
             fetch="one",
@@ -351,14 +363,16 @@ def add_cert(chat_id, label: str, pnr: str, center_date: str, birth: str) -> dic
             "added_at": datetime.now().isoformat(),
             "last_status": "not_found",
             "last_check": None,
+            "initial_sweep_done": False,
         }
         _execute(
             conn,
             """
             INSERT INTO certs (
                 chat_id, id, label, pnr, center_date, birth,
-                added_at, last_status, last_check, completed_at, cached_result
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                added_at, last_status, last_check, completed_at, cached_result,
+                initial_sweep_done
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 cid,
@@ -372,6 +386,7 @@ def add_cert(chat_id, label: str, pnr: str, center_date: str, birth: str) -> dic
                 cert["last_check"],
                 None,
                 None,
+                False,
             ),
         )
         return cert
@@ -384,6 +399,22 @@ def delete_cert(chat_id, cert_id: int) -> bool:
         cur = _execute(conn, "DELETE FROM certs WHERE chat_id = ? AND id = ?", (cid, cert_id))
         rc = cur.rowcount if hasattr(cur, "rowcount") else 0
         return int(rc or 0) > 0
+
+
+def set_initial_sweep_done(chat_id, cert_id: int, done: bool = True) -> None:
+    """Після першого повного проходу «іспит → сьогодні» без знахідки — увімкнути фазу 2 (rolling)."""
+    init_db()
+    cid = str(chat_id)
+    val = bool(done)
+    with _session() as conn:
+        _execute(
+            conn,
+            """
+            UPDATE certs SET initial_sweep_done = ?
+            WHERE chat_id = ? AND id = ?
+            """,
+            (val, cid, cert_id),
+        )
 
 
 def update_cert_status(chat_id, cert_id: int, status: str) -> None:
@@ -452,10 +483,11 @@ def update_cert_field(chat_id, cert_id: int, field: str, value: str) -> bool:
                 f"""
                 UPDATE certs SET {field} = ?,
                     completed_at = NULL,
-                    cached_result = NULL
+                    cached_result = NULL,
+                    initial_sweep_done = ?
                 WHERE chat_id = ? AND id = ?
                 """,
-                (val, cid, cert_id),
+                (val, False, cid, cert_id),
             )
         else:
             _execute(
@@ -479,7 +511,7 @@ def get_all_users() -> dict:
         all_certs = _execute(
             conn,
             "SELECT chat_id, id, label, pnr, center_date, birth, added_at, last_status, last_check, "
-            "completed_at, cached_result "
+            "completed_at, cached_result, initial_sweep_done "
             "FROM certs ORDER BY chat_id, id",
             fetch="all",
         ) or []

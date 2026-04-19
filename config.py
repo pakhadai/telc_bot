@@ -33,8 +33,11 @@ BOT_TOKEN: str = _read_bot_token()
 # ── TELC portal ───────────────────────────────────────────────────────────────
 TELC_URL: str = "https://results.telc.net/"
 
-# Скільки днів ± від введеної дати перебирати
-DATE_SEARCH_RANGE: int = 21
+# Після першого повного проходу «дата іспиту → сьогодні» без результату:
+# лише останні N календарних днів (включно з сьогодні) як дати Prüfung.
+ROLLING_SCAN_DAYS: int = int(os.getenv("ROLLING_SCAN_DAYS", "7"))
+# Максимум календарних днів за один прохід фази 1 (захист від дуже старої дати іспиту).
+PHASE1_MAX_SPAN_DAYS: int = int(os.getenv("PHASE1_MAX_SPAN_DAYS", "400"))
 
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 CHECK_TIMES: list[tuple[int, int]] = [(9, 0), (17, 0)]   # Europe/Berlin

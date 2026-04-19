@@ -10,24 +10,20 @@ Flows:
   menu:info:{id}     → деталі конкретного
   menu:edit:{id}     → вибір поля для редагування
   menu:editfield:*   → ConversationHandler у handlers/editing.py
-  menu:test:{id}     → тест-режим для конкретного
   menu:del:{id}      → підтвердження видалення
   menu:delconfirm:{id} → видалити
   menu:lang          → вибір мови
   setlang:{code}     → зберегти мову
 """
 
-import random
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackQueryHandler, ContextTypes
 
 import storage
 from i18n import t, LANG_NAMES
-from utils.dates import date_range_bounds, next_check_time
-from utils.formatting import format_result, format_test_result
+from utils.dates import describe_cert_scan_range, format_last_check, next_check_time
+from utils.formatting import format_result
 from scraper import check_telc
-from config import DATE_SEARCH_RANGE
 
 
 def home_keyboard_row(lang: str) -> list[InlineKeyboardButton]:
@@ -67,7 +63,6 @@ def cert_detail_markup(cert_id: int, lang: str, *, completed: bool = False) -> I
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(check_caption, callback_data=f"menu:check:{cert_id}"),
-            InlineKeyboardButton(t("btn_test", lang),   callback_data=f"menu:test:{cert_id}"),
         ],
         [
             InlineKeyboardButton(t("btn_edit", lang),   callback_data=f"menu:edit:{cert_id}"),
@@ -134,13 +129,18 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not cert:
             await query.message.reply_text(t("cert_not_found", lang))
             return
-        start, end = date_range_bounds(cert["center_date"], DATE_SEARCH_RANGE)
+        search_range = describe_cert_scan_range(
+            cert["center_date"],
+            lang,
+            initial_sweep_done=bool(cert.get("initial_sweep_done")),
+            completed_at=cert.get("completed_at"),
+        )
         status_key = cert.get("last_status", "not_found")
-        last_check = cert.get("last_check") or "—"
+        last_check = format_last_check(cert.get("last_check"))
         await query.message.reply_text(
             t("cert_detail", lang,
               id=cert["id"], label=cert["label"],
-              pnr=cert["pnr"], start=start, end=end,
+              pnr=cert["pnr"], search_range=search_range,
               birth=cert["birth"],
               status=t(status_key, lang),
               last_check=last_check,
@@ -172,10 +172,19 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         loading = await query.message.reply_text(t("checking", lang))
-        result = await check_telc(cert["pnr"], cert["center_date"], cert["birth"])
+        result = await check_telc(
+            cert["pnr"],
+            cert["center_date"],
+            cert["birth"],
+            initial_sweep_done=bool(cert.get("initial_sweep_done")),
+        )
         if result.found:
             formatted = format_result(cert["pnr"], result, lang)
             storage.save_cert_completion(chat_id, cert_id, result.status, formatted)
+        else:
+            storage.update_cert_status(chat_id, cert_id, result.status)
+            if not cert.get("initial_sweep_done") and result.dates_checked > 0:
+                storage.set_initial_sweep_done(chat_id, cert_id, True)
         await loading.delete()
         await query.message.reply_text(
             f"*[{cert['id']}] {cert['label']}*\n" + format_result(cert["pnr"], result, lang),
@@ -212,29 +221,25 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=home_reply_markup(lang),
                 )
                 continue
-            result = await check_telc(cert["pnr"], cert["center_date"], cert["birth"])
+            result = await check_telc(
+                cert["pnr"],
+                cert["center_date"],
+                cert["birth"],
+                initial_sweep_done=bool(cert.get("initial_sweep_done")),
+            )
             if result.found:
                 formatted = format_result(cert["pnr"], result, lang)
                 storage.save_cert_completion(chat_id, cert["id"], result.status, formatted)
+            else:
+                storage.update_cert_status(chat_id, cert["id"], result.status)
+                if not cert.get("initial_sweep_done") and result.dates_checked > 0:
+                    storage.set_initial_sweep_done(chat_id, cert["id"], True)
             await query.message.reply_text(
                 f"*[{cert['id']}] {cert['label']}*\n" + format_result(cert["pnr"], result, lang),
                 parse_mode="Markdown",
                 reply_markup=home_reply_markup(lang),
             )
         await loading.delete()
-
-    # ── test:{id} ─────────────────────────────────────────────────────────────
-    elif action == "test":
-        cert_id = int(parts[2])
-        cert = storage.get_cert(chat_id, cert_id)
-        pnr = cert["pnr"] if cert else "4627704"
-        found = random.random() > 0.4
-        label = cert["label"] if cert else "Test"
-        await query.message.reply_text(
-            f"*[{cert_id}] {label}*\n" + format_test_result(pnr, lang, found),
-            parse_mode="Markdown",
-            reply_markup=home_reply_markup(lang),
-        )
 
     # ── edit:{id} ─────────────────────────────────────────────────────────────
     elif action == "edit":

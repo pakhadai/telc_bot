@@ -51,7 +51,6 @@ _S: dict[str, dict[str, str]] = {
         "de": "📋 Gespeichertes Ergebnis",
         "en": "📋 Saved result",
     },
-    "btn_test":      {"ua": "🧪 Тест",            "de": "🧪 Test",            "en": "🧪 Test"},
     "btn_delete":    {"ua": "🗑 Видалити",        "de": "🗑 Löschen",         "en": "🗑 Delete"},
     "btn_back":      {"ua": "◀️ Назад",           "de": "◀️ Zurück",          "en": "◀️ Back"},
     "btn_lang":      {"ua": "🌐 Мова",            "de": "🌐 Sprache",         "en": "🌐 Language"},
@@ -94,9 +93,9 @@ _S: dict[str, dict[str, str]] = {
     "edit_field_label": {"ua": "Мітка", "de": "Bezeichnung", "en": "Label"},
     "edit_field_pnr": {"ua": "Teilnehmernummer (PNR)", "de": "Teilnehmernummer (PNR)", "en": "Participant number (PNR)"},
     "edit_field_center_date": {
-        "ua": "Дата видачі (Datum der Ausstellung)",
-        "de": "Datum der Ausstellung",
-        "en": "Issue date (Datum der Ausstellung)",
+        "ua": "Дата іспиту (Prüfungstag)",
+        "de": "Prüfungstag (Examensdatum)",
+        "en": "Exam date (Prüfung)",
     },
     "edit_field_birth": {"ua": "Geburtsdatum", "de": "Geburtsdatum", "en": "Date of birth"},
     "edit_ask_new_value": {
@@ -126,11 +125,36 @@ _S: dict[str, dict[str, str]] = {
         "de": "📭 Du hast noch kein Tracking. Füge das erste Zertifikat hinzu:",
         "en": "📭 You have no tracking yet. Add your first certificate:",
     },
+    "search_range_saved": {
+        "ua": "збережений результат (Datum der Ausstellung та інше з кешу)",
+        "de": "gespeichertes Ergebnis (Aus u. a. Cache)",
+        "en": "saved result (issue date etc. from cache)",
+    },
+    "scan_exam_future": {
+        "ua": "дата іспиту *{exam}* пізніше за сьогодні (*{today}*) — запити по датах ще не стартують",
+        "de": "Prüfungsdatum *{exam}* liegt nach heute (*{today}*) — noch keine Datumsabfragen",
+        "en": "exam *{exam}* is after today (*{today}*) — no date scans yet",
+    },
+    "scan_phase1_desc": {
+        "ua": "фаза 1: від іспиту до сьогодні — *{start}* — *{end}*",
+        "de": "Phase 1: Prüfung bis heute — *{start}* — *{end}*",
+        "en": "phase 1: exam through today — *{start}* — *{end}*",
+    },
+    "scan_phase2_desc": {
+        "ua": "фаза 2: останні дні — *{lo}* — *{hi}* (кожен запуск)",
+        "de": "Phase 2: letzte Tage — *{lo}* — *{hi}* (pro Lauf)",
+        "en": "phase 2: rolling window — *{lo}* — *{hi}* (each run)",
+    },
+    "scan_phase2_empty": {
+        "ua": "фаза 2 (немає дат у вікні)",
+        "de": "Phase 2 (keine Daten)",
+        "en": "phase 2 (no dates)",
+    },
     "cert_detail": {
         "ua": (
             "📄 *[{id}] {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
-            "📅 Діапазон пошуку: {start} — {end}\n"
+            "📅 Діапазон пошуку: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
             "📌 Останній статус: {status}\n"
             "🕐 Остання перевірка: {last_check}\n"
@@ -139,7 +163,7 @@ _S: dict[str, dict[str, str]] = {
         "de": (
             "📄 *[{id}] {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
-            "📅 Datumsbereich: {start} — {end}\n"
+            "📅 Suchbereich: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
             "📌 Letzter Status: {status}\n"
             "🕐 Letzte Prüfung: {last_check}\n"
@@ -148,7 +172,7 @@ _S: dict[str, dict[str, str]] = {
         "en": (
             "📄 *[{id}] {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
-            "📅 Search range: {start} — {end}\n"
+            "📅 Search range: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
             "📌 Last status: {status}\n"
             "🕐 Last check: {last_check}\n"
@@ -199,25 +223,25 @@ _S: dict[str, dict[str, str]] = {
     },
     "ask_issue_date": {
         "ua": (
-            "📝 *Крок 3/4* — *Datum der Ausstellung*\n\n"
-            "Введіть *дату видачі* (є на сертифікаті) або приблизну очікувану дату.\n"
-            "💡 Зазвичай це *2–4 тижні* після іспиту.\n"
-            "Бот перебере ±21 день автоматично.\n\n"
-            "Формат: `ДД.ММ.РРРР` (наприклад `13.11.2025`)"
+            "📝 *Крок 3/4* — *дата іспиту (Prüfung)*\n\n"
+            "Введіть *день здачі іспиту* (фактична дата Prüfung).\n"
+            "💡 *Datum der Ausstellung* бот підставить сам, коли знайде запис на TELC.\n"
+            "Спочатку перебір дат від іспиту до сьогодні; далі — лише останні 7 днів календаря.\n\n"
+            "Формат: `ДД.ММ.РРРР` (наприклад `27.10.2025`)"
         ),
         "de": (
-            "📝 *Schritt 3/4* — *Datum der Ausstellung*\n\n"
-            "Gib das *Ausstellungsdatum* (steht im Zertifikat) oder ein ungefähres Datum ein.\n"
-            "💡 Normalerweise *2–4 Wochen* nach der Prüfung.\n"
-            "Der Bot prüft ±21 Tage automatisch.\n\n"
-            "Format: `TT.MM.JJJJ` (z.B. `13.11.2025`)"
+            "📝 *Schritt 3/4* — *Prüfungstag*\n\n"
+            "Gib den *Tag der Prüfung* (tatsächliches Prüfungsdatum) ein.\n"
+            "💡 *Datum der Ausstellung* holt der Bot, sobald ein Treffer da ist.\n"
+            "Zuerst: alle Tage von der Prüfung bis heute; danach: rollierend die letzten 7 Tage.\n\n"
+            "Format: `TT.MM.JJJJ` (z.B. `27.10.2025`)"
         ),
         "en": (
-            "📝 *Step 3/4* — *Datum der Ausstellung*\n\n"
-            "Enter the *issue date* (on the certificate) or an approximate expected date.\n"
-            "💡 Usually *2–4 weeks* after the exam.\n"
-            "The bot checks ±21 days automatically.\n\n"
-            "Format: `DD.MM.YYYY` (e.g. `13.11.2025`)"
+            "📝 *Step 3/4* — *exam date (Prüfung)*\n\n"
+            "Enter the *exam day* (actual Prüfung date).\n"
+            "💡 *Datum der Ausstellung* is filled in once the bot finds your record.\n"
+            "First: every day from exam through today; then: rolling last 7 calendar days.\n\n"
+            "Format: `DD.MM.YYYY` (e.g. `27.10.2025`)"
         ),
     },
     "ask_birth": {
@@ -234,21 +258,21 @@ _S: dict[str, dict[str, str]] = {
         "ua": (
             "✅ *Додано: {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
-            "📅 Діапазон пошуку: {start} — {end}\n"
+            "📅 Діапазон пошуку: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
             "⏰ Перевірки щодня о *09:00* та *17:00 CET*"
         ),
         "de": (
             "✅ *Hinzugefügt: {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
-            "📅 Datumsbereich: {start} — {end}\n"
+            "📅 Suchbereich: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
             "⏰ Prüfungen täglich um *09:00* und *17:00 Uhr (CET)*"
         ),
         "en": (
             "✅ *Added: {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
-            "📅 Search range: {start} — {end}\n"
+            "📅 Search range: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
             "⏰ Checks daily at *09:00* and *17:00 CET*"
         ),
@@ -364,11 +388,6 @@ _S: dict[str, dict[str, str]] = {
         "ua": "❌ Скасовано. /start щоб почати знову.",
         "de": "❌ Abgebrochen. /start zum Neustart.",
         "en": "❌ Cancelled. Type /start to restart.",
-    },
-    "test_header": {
-        "ua": "🧪 *Тест-режим* — без реального запиту до TELC\n\n",
-        "de": "🧪 *Testmodus* — ohne echten TELC-Aufruf\n\n",
-        "en": "🧪 *Test mode* — no real TELC request\n\n",
     },
     "inline_no_data": {
         "ua": "Немає відстежень — напишіть боту /start",
