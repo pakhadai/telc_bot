@@ -46,10 +46,16 @@ jobs:
               exit 1
             fi
 
-            docker compose config > /dev/null
+            # docker compose підставляє ${POSTGRES_PASSWORD} з .env до запуску postgres
+            if ! grep -qE '^[[:space:]]*POSTGRES_PASSWORD=[^[:space:]]' .env; then
+              echo "ERROR: у .env має бути рядок POSTGRES_PASSWORD=... (непорожній). Скопіюйте з .env.example у репозиторії."
+              exit 1
+            fi
 
-            docker compose build
+            docker compose --env-file .env config > /dev/null
 
-            docker compose up -d
+            docker compose --env-file .env build
+
+            docker compose --env-file .env up -d
 
             docker image prune -f

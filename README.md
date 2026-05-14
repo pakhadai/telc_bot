@@ -182,9 +182,11 @@ python main.py
 | Файл | Призначення |
 |------|-------------|
 | `.github/workflows/ci.yml` | На `push` / `pull_request` у **`main`**: Python 3.12, `pip install`, `compileall`, імпорт-перевірка, `docker compose config` (у CI тимчасово створюється мережа `npm_network`, якщо її немає). |
-| `.github/workflows/deploy.yml` | На `push` у **`main`** і вручну (**workflow_dispatch**): **SCP** каталогу проєкту на VPS **`/root/apps/telc_bot`**, далі **SSH** — `docker compose config`, `build`, `up -d`, `docker image prune -f`. |
+| `.github/workflows/deploy.yml` | На `push` у **`main`** і вручну (**workflow_dispatch**): **SCP** на **`/root/apps/telc_bot`**, **SSH** — перевірка `.env` (наявність **`POSTGRES_PASSWORD`**), `docker compose --env-file .env` (`config`, `build`, `up -d`), `docker image prune -f`. |
 
-**Secrets** у GitHub (Settings → Secrets and variables → Actions): **`VPS_HOST`**, **`VPS_USER`**, **`VPS_PORT`**, **`VPS_SSH_KEY`** (приватний ключ SSH; збігається з форматом вашого pet-проєкту). На сервері має існувати **`/root/apps/telc_bot/.env`** з `BOT_TOKEN` і `POSTGRES_PASSWORD` (інший шлях — змініть `target` у кроці SCP і `cd` у скрипті deploy).
+**Secrets** у GitHub (Settings → Secrets and variables → Actions): **`VPS_HOST`**, **`VPS_USER`**, **`VPS_PORT`**, **`VPS_SSH_KEY`**. На VPS у **`/root/apps/telc_bot/.env`** обов’язково **`BOT_TOKEN`** (або **`TELEGRAM_BOT_TOKEN`**) і **`POSTGRES_PASSWORD`** — без пароля для Postgres `docker compose config` завершиться помилкою інтерполяції (див. `.env.example`).
+
+**Якщо деплой падає з `POSTGRES_PASSWORD` missing:** на сервері відредагуйте `.env`, додайте рядок на кшталт `POSTGRES_PASSWORD=ваш_сильний_пароль`, перезапустіть workflow або зробіть `docker compose --env-file .env up -d` з SSH.
 
 **Cloudflared** у цьому compose **не** додано: боту для long polling він не потрібен; за потреби тунель можна підняти окремим compose у тій самій `npm_network`.
 
