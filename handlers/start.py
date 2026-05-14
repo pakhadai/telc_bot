@@ -61,7 +61,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [InlineKeyboardButton(name, callback_data=f"lang:{code}")]
         for code, name in LANG_NAMES.items()
     ])
-    await update.message.reply_text(t("choose_lang", "ua"), reply_markup=keyboard)
+    prompt = " / ".join(t("choose_lang", lg) for lg in ("ua", "de", "en"))
+    await update.message.reply_text(prompt, reply_markup=keyboard)
 
 
 async def on_first_lang_pick(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

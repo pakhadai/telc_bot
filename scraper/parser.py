@@ -189,6 +189,32 @@ def parse_certificate_response(
         elif "summe" in title or "gesamt" in title or "total" in title:
             score_total = _score_str(b)
 
+    score_written_details: list[tuple[str, str]] = []
+    score_oral_details: list[tuple[str, str]] = []
+    current_section: str | None = None
+
+    for b in grades_content:
+        btype = b.get("type", "")
+
+        if btype == "pointsAndTotal" and b.get("isMainTotal"):
+            title = str(b.get("title", "")).lower()
+            if "schriftlich" in title:
+                current_section = "written"
+            elif "mündlich" in title or "mundlich" in title or "oral" in title:
+                current_section = "oral"
+            else:
+                current_section = None
+            continue
+
+        if btype == "pointsAndTotal" and not b.get("isMainTotal") and current_section:
+            title_raw = str(b.get("title", "")).strip()
+            score_fmt = _score_str(b)
+            entry = (title_raw, score_fmt)
+            if current_section == "written":
+                score_written_details.append(entry)
+            elif current_section == "oral":
+                score_oral_details.append(entry)
+
     # Prädikat
     pred_block    = _block(grades_content, "sumPredicate")
     praedikat_key = str(pred_block.get("content", "")).strip()
@@ -218,4 +244,6 @@ def parse_certificate_response(
         score_total=score_total,
         score_written=score_written,
         score_oral=score_oral,
+        score_written_details=score_written_details,
+        score_oral_details=score_oral_details,
     )

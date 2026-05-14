@@ -13,6 +13,7 @@ from telegram.ext import (
 )
 
 import storage
+from config import CHECK_TIMES, SCHEDULER_TIMEZONE
 from i18n import t
 from utils.dates import describe_cert_scan_range, is_valid_date
 
@@ -83,8 +84,18 @@ async def got_birth(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     search_range = describe_cert_scan_range(
         center, lang, initial_sweep_done=False, completed_at=None
     )
+    times_str = " & ".join(f"{h:02d}:{m:02d}" for h, m in CHECK_TIMES)
+    check_times_label = f"{times_str} ({SCHEDULER_TIMEZONE})"
     await update.message.reply_text(
-        t("saved", lang, label=label, pnr=pnr, search_range=search_range, birth=txt),
+        t(
+            "saved",
+            lang,
+            label=label,
+            pnr=pnr,
+            search_range=search_range,
+            birth=txt,
+            check_times=check_times_label,
+        ),
         parse_mode="Markdown",
     )
     return ConversationHandler.END
@@ -95,17 +106,3 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     await update.message.reply_text(t("cancelled", lang))
     return ConversationHandler.END
-
-
-tracking_conv_handler = ConversationHandler(
-    entry_points=[],   # triggered programmatically from menu
-    states={
-        ASK_LABEL:      [MessageHandler(filters.TEXT & ~filters.COMMAND, got_label)],
-        ASK_PNR:        [MessageHandler(filters.TEXT & ~filters.COMMAND, got_pnr)],
-        ASK_ISSUE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, got_issue_date)],
-        ASK_BIRTH:      [MessageHandler(filters.TEXT & ~filters.COMMAND, got_birth)],
-    },
-    fallbacks=[CommandHandler("cancel", cancel)],
-    name="tracking_conv",
-    persistent=False,
-)

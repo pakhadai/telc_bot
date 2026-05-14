@@ -134,8 +134,12 @@ def _ensure_users_extra_columns(conn: Any) -> None:
             _execute(conn, "ALTER TABLE users ADD COLUMN last_manual_scan_date TEXT")
 
 
+def _berlin_now() -> datetime:
+    return datetime.now(ZoneInfo(SCHEDULER_TIMEZONE))
+
+
 def _berlin_today_iso() -> str:
-    return datetime.now(ZoneInfo(SCHEDULER_TIMEZONE)).date().isoformat()
+    return _berlin_now().date().isoformat()
 
 
 def _ensure_cert_extra_columns(conn: Any) -> None:
@@ -225,7 +229,7 @@ def _migrate_json_if_needed(conn: Any) -> None:
                     str(c.get("pnr", "")),
                     str(c.get("center_date", "")),
                     str(c.get("birth", "")),
-                    str(c.get("added_at", datetime.now().isoformat())),
+                    str(c.get("added_at", _berlin_now().isoformat())),
                     str(c.get("last_status", "not_found")),
                     c.get("last_check"),
                     c.get("completed_at"),
@@ -419,7 +423,7 @@ def add_cert(chat_id, label: str, pnr: str, center_date: str, birth: str) -> dic
             "pnr": pnr,
             "center_date": center_date,
             "birth": birth,
-            "added_at": datetime.now().isoformat(),
+            "added_at": _berlin_now().isoformat(),
             "last_status": "not_found",
             "last_check": None,
             "initial_sweep_done": False,
@@ -479,7 +483,7 @@ def set_initial_sweep_done(chat_id, cert_id: int, done: bool = True) -> None:
 def update_cert_status(chat_id, cert_id: int, status: str) -> None:
     init_db()
     cid = str(chat_id)
-    now = datetime.now().isoformat()
+    now = _berlin_now().isoformat()
     with _session() as conn:
         _execute(
             conn,
@@ -500,7 +504,7 @@ def save_cert_completion(
     """Зберегти текст результату (format_result) і позначити перевірку завершеною."""
     init_db()
     cid = str(chat_id)
-    now = datetime.now().isoformat()
+    now = _berlin_now().isoformat()
     blob = json.dumps({"formatted": formatted_block}, ensure_ascii=False)
     with _session() as conn:
         _execute(

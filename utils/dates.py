@@ -5,7 +5,12 @@ utils/dates.py — date helpers for the TELC bot.
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from config import PHASE1_MAX_SPAN_DAYS, ROLLING_SCAN_DAYS, SCHEDULER_TIMEZONE
+from config import (
+    CHECK_TIMES,
+    PHASE1_MAX_SPAN_DAYS,
+    ROLLING_SCAN_DAYS,
+    SCHEDULER_TIMEZONE,
+)
 
 
 def _midnight_in_scheduler_tz() -> datetime:
@@ -72,14 +77,19 @@ def describe_cert_scan_range(
 
 
 def next_check_time() -> str:
-    """Return HH:MM CET of the next scheduled check."""
-    now = datetime.now()
-    for h, m in [(9, 0), (17, 0)]:
+    """Return wall-clock time of the next scheduled check in SCHEDULER_TIMEZONE."""
+    tz = ZoneInfo(SCHEDULER_TIMEZONE)
+    now = datetime.now(tz)
+    tz_label = f"({SCHEDULER_TIMEZONE})"
+    for h, m in CHECK_TIMES:
         candidate = now.replace(hour=h, minute=m, second=0, microsecond=0)
         if candidate > now:
-            return candidate.strftime("%H:%M CET")
-    tomorrow = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0)
-    return tomorrow.strftime("%d.%m %H:%M CET")
+            return f"{candidate.strftime('%H:%M')} {tz_label}"
+    h0, m0 = CHECK_TIMES[0]
+    tomorrow = (now + timedelta(days=1)).replace(
+        hour=h0, minute=m0, second=0, microsecond=0
+    )
+    return f"{tomorrow.strftime('%d.%m %H:%M')} {tz_label}"
 
 
 def is_valid_date(text: str) -> bool:

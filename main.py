@@ -12,6 +12,7 @@ from telegram import Update
 from telegram.error import Conflict
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     ContextTypes,
     ConversationHandler,
     MessageHandler,
@@ -29,6 +30,7 @@ from config import (
     SQLITE_PATH,
     DATABASE_URL,
 )
+from i18n import t
 from handlers.start import (
     start_handler,
     first_lang_handler,
@@ -58,6 +60,17 @@ for noisy in ("httpx", "httpcore", "apscheduler.executors", "telegram.ext.ExtBot
     logging.getLogger(noisy).setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
+
+
+async def _conv_button_hint(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    if not update.callback_query:
+        return
+    lang = storage.get_lang(update.effective_chat.id)
+    await update.callback_query.answer(
+        t("conv_active_hint", lang), show_alert=False
+    )
 
 
 async def on_ptb_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -98,10 +111,22 @@ def build_app() -> Application:
     add_conv = ConversationHandler(
         entry_points=[menu_callback_handler],   # menu:add sets state ASK_LABEL
         states={
-            ASK_LABEL:      [MessageHandler(filters.TEXT & ~filters.COMMAND, got_label)],
-            ASK_PNR:        [MessageHandler(filters.TEXT & ~filters.COMMAND, got_pnr)],
-            ASK_ISSUE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, got_issue_date)],
-            ASK_BIRTH:      [MessageHandler(filters.TEXT & ~filters.COMMAND, got_birth)],
+            ASK_LABEL: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, got_label),
+                CallbackQueryHandler(_conv_button_hint, pattern=r"^menu:"),
+            ],
+            ASK_PNR: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, got_pnr),
+                CallbackQueryHandler(_conv_button_hint, pattern=r"^menu:"),
+            ],
+            ASK_ISSUE_DATE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, got_issue_date),
+                CallbackQueryHandler(_conv_button_hint, pattern=r"^menu:"),
+            ],
+            ASK_BIRTH: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, got_birth),
+                CallbackQueryHandler(_conv_button_hint, pattern=r"^menu:"),
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         name="add_conv",

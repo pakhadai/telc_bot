@@ -97,7 +97,11 @@ _S: dict[str, dict[str, str]] = {
         "de": "Prüfungstag (Examensdatum)",
         "en": "Exam date (Prüfung)",
     },
-    "edit_field_birth": {"ua": "Geburtsdatum", "de": "Geburtsdatum", "en": "Date of birth"},
+    "edit_field_birth": {
+        "ua": "Дата народження (Geburtsdatum)",
+        "de": "Geburtsdatum",
+        "en": "Date of birth (Geburtsdatum)",
+    },
     "edit_ask_new_value": {
         "ua": "Введіть нове значення для: *{field}*",
         "de": "Neuen Wert eingeben für: *{field}*",
@@ -254,27 +258,32 @@ _S: dict[str, dict[str, str]] = {
         "de": "❌ Ungültiges Format. Bitte `TT.MM.JJJJ` verwenden:",
         "en": "❌ Invalid format. Please use `DD.MM.YYYY`:",
     },
+    "conv_active_hint": {
+        "ua": "Введіть текст або /cancel для скасування",
+        "de": "Text eingeben oder /cancel zum Abbrechen",
+        "en": "Enter text or /cancel to stop",
+    },
     "saved": {
         "ua": (
             "✅ *Додано: {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
             "📅 Діапазон пошуку: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
-            "⏰ Перевірки щодня о *09:00* та *17:00 CET*"
+            "⏰ Перевірки щодня о *{check_times}*"
         ),
         "de": (
             "✅ *Hinzugefügt: {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
             "📅 Suchbereich: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
-            "⏰ Prüfungen täglich um *09:00* und *17:00 Uhr (CET)*"
+            "⏰ Prüfungen täglich um *{check_times}*"
         ),
         "en": (
             "✅ *Added: {label}*\n\n"
             "👤 Teilnehmernummer: `{pnr}`\n"
             "📅 Search range: {search_range}\n"
             "🎂 Geburtsdatum: `{birth}`\n\n"
-            "⏰ Checks daily at *09:00* and *17:00 CET*"
+            "⏰ Checks daily at *{check_times}*"
         ),
     },
 
@@ -301,6 +310,57 @@ _S: dict[str, dict[str, str]] = {
             "📅 Issue date: {issue_date}\n"
             "📊 Status: {status}"
         ),
+    },
+    "result_full": {
+        "ua": (
+            "🎉 *РЕЗУЛЬТАТ ЗНАЙДЕНО!*\n"
+            "{cert_type_label}\n\n"
+            "👤 Teilnehmernummer: `{pnr}`\n"
+            "📜 Іспит: *{exam_name}*\n"
+            "📅 Дата видачі: {issue_date}\n"
+            "📆 Дата іспиту: {exam_date}\n"
+            "🏫 Центр: {exam_center}\n\n"
+            "📊 *Результати:*\n"
+            "{scores_block}\n\n"
+            "🏅 Prädikat: *{praedikat}*\n"
+            "✅ Статус: {status}"
+        ),
+        "de": (
+            "🎉 *ERGEBNIS GEFUNDEN!*\n"
+            "{cert_type_label}\n\n"
+            "👤 Teilnehmernummer: `{pnr}`\n"
+            "📜 Prüfung: *{exam_name}*\n"
+            "📅 Ausstellungsdatum: {issue_date}\n"
+            "📆 Prüfungsdatum: {exam_date}\n"
+            "🏫 Prüfungszentrum: {exam_center}\n\n"
+            "📊 *Ergebnisse:*\n"
+            "{scores_block}\n\n"
+            "🏅 Prädikat: *{praedikat}*\n"
+            "✅ Status: {status}"
+        ),
+        "en": (
+            "🎉 *RESULT FOUND!*\n"
+            "{cert_type_label}\n\n"
+            "👤 Teilnehmernummer: `{pnr}`\n"
+            "📜 Exam: *{exam_name}*\n"
+            "📅 Issue date: {issue_date}\n"
+            "📆 Exam date: {exam_date}\n"
+            "🏫 Exam centre: {exam_center}\n\n"
+            "📊 *Results:*\n"
+            "{scores_block}\n\n"
+            "🏅 Prädikat: *{praedikat}*\n"
+            "✅ Status: {status}"
+        ),
+    },
+    "cert_type_digital": {
+        "ua": "🖥 Цифровий сертифікат",
+        "de": "🖥 Digitales Zertifikat",
+        "en": "🖥 Digital certificate",
+    },
+    "cert_type_paper": {
+        "ua": "📄 Паперовий сертифікат",
+        "de": "📄 Papierzertifikat",
+        "en": "📄 Paper certificate",
     },
     "result_paper": {
         "ua": (

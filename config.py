@@ -2,7 +2,7 @@
 config.py — всі константи та CertResult dataclass.
 """
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 _BASE_DIR = Path(__file__).resolve().parent
@@ -75,3 +75,5 @@ class CertResult:
     exam_center: str    = ""       # "HDS St. Gallen AG"
     dates_checked: int  = 0
     error_message: str  = ""
+    score_written_details: list[tuple[str, str]] = field(default_factory=list)
+    score_oral_details: list[tuple[str, str]] = field(default_factory=list)
