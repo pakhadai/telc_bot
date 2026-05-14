@@ -1,0 +1,59 @@
+# VPS: /root/apps/telc_bot (або ~/apps/telc_bot). Перед запуском: cp .env.example .env
+# Локальний міст telc-network + зовнішня npm_network (Nginx Proxy Manager).
+#
+# Якщо PostgreSQL уже є окремо — приберіть сервіс postgres, том postgres_data і depends_on;
+# у .env задайте DATABASE_URL на зовнішню БД.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: telc_bot_postgres
+    environment:
+      POSTGRES_USER: telc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: telc_bot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - telc-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telc -d telc_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: telc_bot:latest
+    container_name: telc_bot
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://telc:${POSTGRES_PASSWORD}@postgres:5432/telc_bot
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - telc-network
+      - npm_network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+networks:
+  telc-network:
+    driver: bridge
+  npm_network:
+    external: true
+
+volumes:
+  postgres_data:

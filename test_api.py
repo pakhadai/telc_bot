@@ -2,12 +2,18 @@
 test_api.py — перевірка API + парсера з реальними даними.
 
 Запуск:  python test_api.py
+
+Останній блок друкує *точний* текст, який бот відправляє в чат після
+«Перевірити» / «Перевірити всі» (handlers/menu.py: parse_mode="Markdown"):
+  *[id] підпис*\n + format_result(...)
+Підставте PREVIEW_CERT_* як у вашому записі в боті, щоб прев’ю збігалося 1:1.
 """
 
 import asyncio
 import json
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 import aiohttp
@@ -19,6 +25,11 @@ PNR       = "4736983"
 BIRTH_ISO = "1994-02-23"
 DATE_ISO  = "2026-05-08"
 
+# Як у боті після додавання сертифіката (поле label та id у списку)
+PREVIEW_CERT_ID    = 1
+PREVIEW_CERT_LABEL = "Мій сертифікат"
+PREVIEW_LANG       = "ua"  # ua | de | en
+
 HEADERS = {
     "User-Agent":      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15",
     "Accept":          "application/json, text/plain, */*",
@@ -29,6 +40,14 @@ HEADERS = {
     "Referer":         "https://results.telc.net/",
     "Origin":          "https://results.telc.net",
 }
+
+
+def build_telegram_check_message(cert_id: int, label: str, pnr: str, result, lang: str) -> str:
+    """Той самий рядок, що menu.py передає в reply_text(..., parse_mode='Markdown')."""
+    from utils.formatting import format_result
+
+    body = format_result(pnr, result, lang)
+    return f"*[{cert_id}] {label}*\n" + body
 
 
 async def main():
@@ -79,32 +98,42 @@ async def main():
             detail_data = await r.json(content_type=None)
 
         # ── Повна відповідь ───────────────────────────────────────────────────
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("FULL CERTIFICATE RESPONSE:")
         print(json.dumps(detail_data, indent=2, ensure_ascii=False))
 
-        # ── Тест парсера ──────────────────────────────────────────────────────
-        print("\n" + "="*60)
-        print("PARSER OUTPUT:")
+        # ── Парсер (коротко) ──────────────────────────────────────────────────
+        print("\n" + "=" * 60)
+        print("PARSER (коротко):")
         result = parse_certificate_response(lookup_data, detail_data, cert_type, DATE_ISO)
-        print(f"  found:        {result.found}")
-        print(f"  cert_type:    {result.cert_type}")
-        print(f"  status:       {result.status}")
-        print(f"  exam_name:    {result.exam_name}")
-        print(f"  exam_date:    {result.exam_date}")
-        print(f"  issue_date:   {result.issue_date}")
-        print(f"  exam_center:  {result.exam_center}")
-        print(f"  praedikat:    {result.praedikat}")
-        print(f"  score_total:  {result.score_total}")
-        print(f"  score_written:{result.score_written}")
-        print(f"  score_oral:   {result.score_oral}")
+        print(
+            f"  found={result.found!r}  type={result.cert_type!r}  status={result.status!r}\n"
+            f"  exam={result.exam_name!r}  exam_date={result.exam_date!r}  "
+            f"issue={result.issue_date!r}\n"
+            f"  scores: total={result.score_total!r} written={result.score_written!r} "
+            f"oral={result.score_oral!r}"
+        )
 
-        # ── Симуляція Telegram повідомлення ───────────────────────────────────
-        print("\n" + "="*60)
-        print("TELEGRAM MESSAGE PREVIEW (UA):")
-        from utils.formatting import format_result
-        msg = format_result(PNR, result, "ua")
-        print(msg)
+        # ── Як у Telegram після «Перевірити» (Markdown) ───────────────────────
+        telegram_text = build_telegram_check_message(
+            PREVIEW_CERT_ID,
+            PREVIEW_CERT_LABEL,
+            PNR,
+            result,
+            PREVIEW_LANG,
+        )
+        print("\n" + "=" * 60)
+        print(
+            "TELEGRAM — те саме, що reply_text(..., parse_mode='Markdown') "
+            f"(lang={PREVIEW_LANG}):"
+        )
+        print("-" * 60)
+        print(telegram_text)
+        print("-" * 60)
+        print(
+            "У клієнті Telegram символи *…* стануть напівжирним/курсивом; "
+            "у консолі Windows це залишається сирими символами Markdown."
+        )
 
 
 if __name__ == "__main__":

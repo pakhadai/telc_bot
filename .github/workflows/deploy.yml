@@ -1,0 +1,55 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-telc-bot-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync files via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "."
+          target: "/root/apps/telc_bot"
+          rm: false
+          overwrite: true
+
+      - name: Execute deployment commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/apps/telc_bot
+
+            # Локальний .env на VPS (секрети не з репозиторію).
+            if [ ! -f .env ]; then
+              echo "ERROR: /root/apps/telc_bot/.env not found on VPS."
+              exit 1
+            fi
+
+            docker compose config > /dev/null
+
+            docker compose build
+
+            docker compose up -d
+
+            docker image prune -f
