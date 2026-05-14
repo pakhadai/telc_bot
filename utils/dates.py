@@ -101,11 +101,12 @@ def is_valid_date(text: str) -> bool:
 
 
 def now_str() -> str:
-    return datetime.now().strftime("%d.%m.%Y %H:%M")
+    tz = ZoneInfo(SCHEDULER_TIMEZONE)
+    return datetime.now(tz).strftime("%d.%m.%Y %H:%M")
 
 
 def format_last_check(raw: str | None) -> str:
-    """Локальна дата/час з ISO з БД, або «—» якщо ще не перевіряли."""
+    """Дата/час останньої перевірки в Europe/Berlin, або «—»."""
     if not raw or not str(raw).strip():
         return "—"
     s = str(raw).strip()
@@ -113,6 +114,11 @@ def format_last_check(raw: str | None) -> str:
         if s.endswith("Z"):
             s = s[:-1] + "+00:00"
         dt = datetime.fromisoformat(s)
-        return dt.strftime("%d.%m.%Y %H:%M")
+        tz = ZoneInfo(SCHEDULER_TIMEZONE)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz)
+        else:
+            dt = dt.astimezone(tz)
+        return dt.strftime("%d.%m.%Y %H:%M") + " (Berlin)"
     except ValueError:
         return s

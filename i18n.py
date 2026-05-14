@@ -447,18 +447,18 @@ _S: dict[str, dict[str, str]] = {
     "manual_scan_limit": {
         "ua": (
             "⏳ *Ручна перевірка вже використана сьогодні.*\n\n"
-            "Один додатковий запит на день (CET) — щоб не навантажувати TELC.\n"
-            "Автоматичні перевірки о *09:00* та *17:00* як і раніше."
+            "Один додатковий запит на день (Europe/Berlin) — щоб не навантажувати TELC.\n"
+            "Автоматична перевірка щодня о *15:00* (Europe/Berlin) як і раніше."
         ),
         "de": (
             "⏳ *Manuelle Prüfung für heute schon verbraucht.*\n\n"
-            "Ein zusätzlicher Abruf pro Kalendertag (CET).\n"
-            "Automatische Läufe um *09:00* und *17:00* bleiben aktiv."
+            "Ein zusätzlicher Abruf pro Kalendertag (Europe/Berlin).\n"
+            "Automatischer Lauf täglich um *15:00* (Europe/Berlin) bleibt aktiv."
         ),
         "en": (
             "⏳ *You already used your manual check today.*\n\n"
-            "One extra check per calendar day (CET) to avoid hammering TELC.\n"
-            "Scheduled checks at *09:00* and *17:00* still run."
+            "One extra check per calendar day (Europe/Berlin) to avoid hammering TELC.\n"
+            "Scheduled check daily at *15:00* (Europe/Berlin) still runs."
         ),
     },
     "cancelled": {

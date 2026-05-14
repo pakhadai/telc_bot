@@ -295,6 +295,20 @@ def _row_to_cert(row: Any) -> dict[str, Any]:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
+def user_exists(chat_id) -> bool:
+    """Чи є рядок у `users` для цього чату (користувач уже обирав мову / взаємодіяв з ботом)."""
+    init_db()
+    cid = str(chat_id)
+    with _session() as conn:
+        row = _execute(
+            conn,
+            "SELECT 1 AS x FROM users WHERE chat_id = ?",
+            (cid,),
+            fetch="one",
+        )
+        return row is not None
+
+
 def manual_scan_available_today(chat_id) -> bool:
     """Чи можна зробити ручну перевірку (1 раз на календарний день, Europe/Berlin)."""
     init_db()
@@ -315,11 +329,10 @@ def manual_scan_available_today(chat_id) -> bool:
         return str(raw).strip() != today
 
 
-def record_manual_scan(chat_id) -> None:
+def record_manual_scan(chat_id, lang: str) -> None:
     """Позначити, що сьогодні ручну перевірку вже використано."""
     init_db()
     cid = str(chat_id)
-    lang = get_lang(chat_id)
     today = _berlin_today_iso()
     with _session() as conn:
         _execute(
@@ -497,6 +510,26 @@ def update_cert_status(chat_id, cert_id: int, status: str) -> None:
 
 _EDITABLE_FIELDS = frozenset({"label", "pnr", "center_date", "birth"})
 
+# Імена колонок лише з whitelist — без f-string у SQL.
+_EDITABLE_FIELD_SQL: dict[str, str] = {
+    "label": "UPDATE certs SET label = ? WHERE chat_id = ? AND id = ?",
+    "birth": "UPDATE certs SET birth = ? WHERE chat_id = ? AND id = ?",
+    "pnr": """
+        UPDATE certs SET pnr = ?,
+            completed_at = NULL,
+            cached_result = NULL,
+            initial_sweep_done = ?
+        WHERE chat_id = ? AND id = ?
+        """,
+    "center_date": """
+        UPDATE certs SET center_date = ?,
+            completed_at = NULL,
+            cached_result = NULL,
+            initial_sweep_done = ?
+        WHERE chat_id = ? AND id = ?
+        """,
+}
+
 
 def save_cert_completion(
     chat_id, cert_id: int, status: str, formatted_block: str
@@ -540,27 +573,11 @@ def update_cert_field(chat_id, cert_id: int, field: str, value: str) -> bool:
         )
         if not row:
             return False
+        sql = _EDITABLE_FIELD_SQL[field]
         if field in ("pnr", "center_date"):
-            _execute(
-                conn,
-                f"""
-                UPDATE certs SET {field} = ?,
-                    completed_at = NULL,
-                    cached_result = NULL,
-                    initial_sweep_done = ?
-                WHERE chat_id = ? AND id = ?
-                """,
-                (val, False, cid, cert_id),
-            )
+            _execute(conn, sql, (val, False, cid, cert_id))
         else:
-            _execute(
-                conn,
-                f"""
-                UPDATE certs SET {field} = ?
-                WHERE chat_id = ? AND id = ?
-                """,
-                (val, cid, cert_id),
-            )
+            _execute(conn, sql, (val, cid, cert_id))
     return True
 
 

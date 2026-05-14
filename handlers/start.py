@@ -43,8 +43,7 @@ async def fallback_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
 
-    data = storage.get_all_users()
-    if str(chat_id) in data and "lang" in data[str(chat_id)]:
+    if storage.user_exists(chat_id):
         lang = storage.get_lang(chat_id)
         certs = storage.get_certs(chat_id)
         n = len(certs)

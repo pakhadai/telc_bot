@@ -40,7 +40,9 @@ ROLLING_SCAN_DAYS: int = int(os.getenv("ROLLING_SCAN_DAYS", "7"))
 PHASE1_MAX_SPAN_DAYS: int = int(os.getenv("PHASE1_MAX_SPAN_DAYS", "400"))
 
 # ── Scheduler ─────────────────────────────────────────────────────────────────
-CHECK_TIMES: list[tuple[int, int]] = [(9, 0), (17, 0)]   # Europe/Berlin
+# Автоматична перевірка — один раз на день (Europe/Berlin).
+# Окремо лишається 1 ручна перевірка на день з меню.
+CHECK_TIMES: list[tuple[int, int]] = [(15, 0)]
 SCHEDULER_TIMEZONE: str = "Europe/Berlin"
 
 # Затримка між перевірками різних користувачів (щоб не перевантажувати API)

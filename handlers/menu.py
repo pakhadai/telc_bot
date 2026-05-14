@@ -101,7 +101,7 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── add ───────────────────────────────────────────────────────────────────
     if action == "add":
-        from handlers.tracking import start_add, ASK_LABEL
+        from handlers.tracking import start_add
         return await start_add(update, context)
 
     # ── list (main cert list) ─────────────────────────────────────────────────
@@ -178,7 +178,6 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=home_reply_markup(lang),
             )
             return
-        storage.record_manual_scan(chat_id)
         loading = await query.message.reply_text(t("checking", lang))
         result = await check_telc(
             cert["pnr"],
@@ -193,6 +192,7 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             storage.update_cert_status(chat_id, cert_id, result.status)
             if not cert.get("initial_sweep_done") and result.dates_checked > 0:
                 storage.set_initial_sweep_done(chat_id, cert_id, True)
+        storage.record_manual_scan(chat_id, lang)
         await loading.delete()
         await query.message.reply_text(
             f"*[{cert['id']}] {cert['label']}*\n" + format_result(cert["pnr"], result, lang),
@@ -227,11 +227,10 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=home_reply_markup(lang),
             )
             return
-        if needs_live:
-            storage.record_manual_scan(chat_id)
         loading = await query.message.reply_text(
             t("checking_all", lang, n=len(certs)),
         )
+        manual_slot_recorded = False
         for cert in certs:
             cached = cert.get("cached_result")
             if (
@@ -259,6 +258,9 @@ async def _handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 storage.update_cert_status(chat_id, cert["id"], result.status)
                 if not cert.get("initial_sweep_done") and result.dates_checked > 0:
                     storage.set_initial_sweep_done(chat_id, cert["id"], True)
+            if needs_live and not manual_slot_recorded:
+                storage.record_manual_scan(chat_id, lang)
+                manual_slot_recorded = True
             await query.message.reply_text(
                 f"*[{cert['id']}] {cert['label']}*\n" + format_result(cert["pnr"], result, lang),
                 parse_mode="Markdown",
